@@ -1,0 +1,8 @@
+{
+  "regions": ["gru1"],
+  "functions": {
+    "app/api/bet/execute/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

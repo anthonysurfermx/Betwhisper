@@ -1,0 +1,17 @@
+# Dependencies
+web/node_modules/
+web/.next/
+web/.vercel/
+
+# Env / Secrets
+web/.env*
+ios/Sources/Secrets.plist
+
+# Build artifacts
+ios/build/
+ios/DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# OS
+.DS_Store
