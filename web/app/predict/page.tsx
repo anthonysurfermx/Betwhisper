@@ -13,6 +13,7 @@ import {
   Swords, Gamepad2, CircleDot, Bitcoin, Dribbble,
   Trophy, Zap,
   Users, Link2, Copy, Check, Plus, ArrowLeft, Crown, Lock, Unlock,
+  MessageSquare, Trash2, Clock,
 } from 'lucide-react'
 import {
   Drawer, DrawerContent, DrawerTrigger, DrawerTitle,
@@ -133,6 +134,26 @@ interface LeaderboardEntry {
   wallet_address: string
   total_pnl: number
   bet_count: number
+}
+
+// ─── Conversations Types ───
+
+interface ConversationInfo {
+  id: string
+  wallet_address: string
+  title: string
+  last_message: string | null
+  message_count: number
+  created_at: string
+  updated_at: string
+}
+
+interface ConversationMessage {
+  id: string
+  role: ChatRole
+  text: string
+  source: string
+  created_at: string
 }
 
 // ─── i18n ───
@@ -2200,6 +2221,119 @@ function ChatBubble({ message, assistantName }: { message: ChatMessage; assistan
   )
 }
 
+// ─── Conversations Drawer ───
+
+function ConversationsDrawer({ address, lang, conversations, currentConversationId, onSelect, onNew, onDelete, onRefresh }: {
+  address: string | null
+  lang: Lang
+  conversations: ConversationInfo[]
+  currentConversationId: string | null
+  onSelect: (conv: ConversationInfo) => void
+  onNew: () => void
+  onDelete: (id: string) => void
+  onRefresh: () => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (open) onRefresh()
+  }, [open, onRefresh])
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    const now = new Date()
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  }
+
+  return (
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger asChild>
+        <button className="p-2 border border-[--border-light] hover:border-white/30 transition-colors relative">
+          <MessageSquare className="w-3.5 h-3.5 text-white/40" />
+          {conversations.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 text-[8px] font-bold text-black flex items-center justify-center">
+              {conversations.length}
+            </span>
+          )}
+        </button>
+      </DrawerTrigger>
+      <DrawerContent className="bg-black border-t border-[--border] max-h-[85vh]">
+        <DrawerTitle className="sr-only">Conversations</DrawerTitle>
+        <div className="p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-[11px] font-mono text-white/40 tracking-[1.5px]">
+              {lang === 'es' ? 'CONVERSACIONES' : 'CONVERSATIONS'}
+            </span>
+            <button
+              onClick={() => { onNew(); setOpen(false) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono hover:bg-emerald-500/10 transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              {lang === 'es' ? 'NUEVA' : 'NEW'}
+            </button>
+          </div>
+
+          {/* List */}
+          {conversations.length === 0 ? (
+            <div className="text-center py-8">
+              <MessageSquare className="w-6 h-6 text-white/10 mx-auto mb-2" />
+              <p className="text-[12px] text-white/20 font-mono">
+                {lang === 'es' ? 'Sin conversaciones aun' : 'No conversations yet'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+              {conversations.map(conv => (
+                <div
+                  key={conv.id}
+                  className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border ${
+                    conv.id === currentConversationId
+                      ? 'border-emerald-500/30 bg-emerald-500/5'
+                      : 'border-transparent hover:bg-white/[0.03]'
+                  }`}
+                  onClick={() => { onSelect(conv); setOpen(false) }}
+                >
+                  <div className="w-8 h-8 border border-white/10 flex items-center justify-center flex-shrink-0">
+                    <MessageSquare className="w-3.5 h-3.5 text-white/20" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-medium text-white truncate">
+                        {conv.title}
+                      </span>
+                      <span className="text-[9px] font-mono text-white/20 ml-2 flex-shrink-0">
+                        {formatDate(conv.updated_at)}
+                      </span>
+                    </div>
+                    {conv.last_message && (
+                      <p className="text-[11px] text-white/30 font-mono truncate mt-0.5">
+                        {conv.last_message}
+                      </p>
+                    )}
+                    <span className="text-[9px] text-white/15 font-mono">
+                      {conv.message_count} msg{Number(conv.message_count) !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+                    className="p-1.5 text-white/10 hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
 // ─── Main Page ───
 
 export default function PredictChat() {
@@ -2322,6 +2456,101 @@ export default function PredictChat() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const initialLoadDone = useRef(false)
 
+  // Conversation persistence
+  const [conversations, setConversations] = useState<ConversationInfo[]>([])
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const conversationTitleSet = useRef(false)
+
+  const fetchConversations = useCallback(async () => {
+    if (!address) return
+    try {
+      const res = await fetch(`/api/conversations?wallet=${address}`)
+      if (res.ok) setConversations(await res.json())
+    } catch {}
+  }, [address])
+
+  const createConversation = useCallback(async () => {
+    if (!address) return null
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_address: address }),
+      })
+      if (res.ok) {
+        const conv = await res.json()
+        setCurrentConversationId(conv.id)
+        conversationTitleSet.current = false
+        return conv.id as string
+      }
+    } catch {}
+    return null
+  }, [address])
+
+  const persistMessage = useCallback(async (convId: string, role: ChatRole, text: string) => {
+    if (!text || !convId) return
+    try {
+      await fetch(`/api/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, text }),
+      })
+      // Auto-title from first user message
+      if (role === 'user' && !conversationTitleSet.current) {
+        conversationTitleSet.current = true
+        await fetch(`/api/conversations/${convId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: text.slice(0, 60) }),
+        })
+      }
+    } catch {}
+  }, [])
+
+  const loadConversation = useCallback(async (conv: ConversationInfo) => {
+    setCurrentConversationId(conv.id)
+    conversationTitleSet.current = conv.title !== 'New Conversation'
+    try {
+      const res = await fetch(`/api/conversations/${conv.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        const restored: ChatMessage[] = (data.messages || []).map((m: ConversationMessage) => ({
+          id: uid(),
+          role: m.role as ChatRole,
+          text: m.text,
+          timestamp: new Date(m.created_at).getTime(),
+        }))
+        setMessages(restored)
+      }
+    } catch {}
+  }, [])
+
+  const startNewConversation = useCallback(async () => {
+    setMessages([])
+    initialLoadDone.current = false
+    const convId = await createConversation()
+    if (convId) {
+      await fetchConversations()
+    }
+  }, [createConversation, fetchConversations])
+
+  const deleteConversation = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+      setConversations(prev => prev.filter(c => c.id !== id))
+      if (id === currentConversationId) {
+        startNewConversation()
+      }
+    } catch {}
+  }, [currentConversationId, startNewConversation])
+
+  // Create conversation on first connect
+  useEffect(() => {
+    if (address && !currentConversationId) {
+      createConversation().then(() => fetchConversations())
+    }
+  }, [address, currentConversationId, createConversation, fetchConversations])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -2329,8 +2558,12 @@ export default function PredictChat() {
   const addMessage = useCallback((role: ChatRole, text: string, attachment?: ChatAttachment): string => {
     const id = uid()
     setMessages(prev => [...prev, { id, role, text, attachment, timestamp: Date.now() }])
+    // Persist non-empty text messages
+    if (text && currentConversationId) {
+      persistMessage(currentConversationId, role, text)
+    }
     return id
-  }, [])
+  }, [currentConversationId, persistMessage])
 
   const removeMessage = useCallback((id: string) => {
     setMessages(prev => prev.filter(m => m.id !== id))
@@ -2986,6 +3219,16 @@ export default function PredictChat() {
                 <span className="text-[11px] text-white/40 font-mono hidden sm:block">
                   {address?.slice(0, 6)}...{address?.slice(-4)}
                 </span>
+                <ConversationsDrawer
+                  address={address}
+                  lang={lang}
+                  conversations={conversations}
+                  currentConversationId={currentConversationId}
+                  onSelect={loadConversation}
+                  onNew={startNewConversation}
+                  onDelete={deleteConversation}
+                  onRefresh={fetchConversations}
+                />
                 <GroupsDrawer
                   address={address}
                   isConnected={isConnected}
