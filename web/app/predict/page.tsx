@@ -2223,7 +2223,7 @@ function ChatBubble({ message, assistantName }: { message: ChatMessage; assistan
 
 // ─── Conversations Drawer ───
 
-function ConversationsDrawer({ address, lang, conversations, currentConversationId, onSelect, onNew, onDelete, onRefresh }: {
+function ConversationsDrawer({ address, lang, conversations, currentConversationId, onSelect, onNew, onDelete, onDeleteAll, onRefresh }: {
   address: string | null
   lang: Lang
   conversations: ConversationInfo[]
@@ -2231,6 +2231,7 @@ function ConversationsDrawer({ address, lang, conversations, currentConversation
   onSelect: (conv: ConversationInfo) => void
   onNew: () => void
   onDelete: (id: string) => void
+  onDeleteAll: () => void
   onRefresh: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -2268,13 +2269,24 @@ function ConversationsDrawer({ address, lang, conversations, currentConversation
             <span className="text-[11px] font-mono text-white/40 tracking-[1.5px]">
               {lang === 'es' ? 'CONVERSACIONES' : 'CONVERSATIONS'}
             </span>
-            <button
-              onClick={() => { onNew(); setOpen(false) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono hover:bg-emerald-500/10 transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              {lang === 'es' ? 'NUEVA' : 'NEW'}
-            </button>
+            <div className="flex items-center gap-2">
+              {conversations.length > 0 && (
+                <button
+                  onClick={() => { if (confirm(lang === 'es' ? 'Borrar todas las conversaciones?' : 'Delete all conversations?')) { onDeleteAll(); } }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-500/20 text-red-400/60 text-[11px] font-mono hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  {lang === 'es' ? 'BORRAR' : 'CLEAR'}
+                </button>
+              )}
+              <button
+                onClick={() => { onNew(); setOpen(false) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono hover:bg-emerald-500/10 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                {lang === 'es' ? 'NUEVA' : 'NEW'}
+              </button>
+            </div>
           </div>
 
           {/* List */}
@@ -2543,6 +2555,14 @@ export default function PredictChat() {
       }
     } catch {}
   }, [currentConversationId, startNewConversation])
+
+  const deleteAllConversations = useCallback(async () => {
+    try {
+      await Promise.all(conversations.map(c => fetch(`/api/conversations/${c.id}`, { method: 'DELETE' })))
+      setConversations([])
+      startNewConversation()
+    } catch {}
+  }, [conversations, startNewConversation])
 
   // Create conversation on first connect
   useEffect(() => {
@@ -3231,6 +3251,7 @@ export default function PredictChat() {
                   onSelect={loadConversation}
                   onNew={startNewConversation}
                   onDelete={deleteConversation}
+                  onDeleteAll={deleteAllConversations}
                   onRefresh={fetchConversations}
                 />
                 <GroupsDrawer
