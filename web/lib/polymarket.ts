@@ -290,8 +290,8 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   if (leagueSlug) {
     console.log(`[Search] Path: league tag="${leagueSlug}"`)
     return fetchEvents(new URLSearchParams({
-      _limit: String(limit), active: 'true', closed: 'false',
-      tag_slug: leagueSlug, order: 'startDate', ascending: 'true',
+      _limit: '20', active: 'true', closed: 'false',
+      tag_slug: leagueSlug, order: 'volume24hr', ascending: 'false',
     }))
   }
 
@@ -302,35 +302,20 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   console.log(`[Search] Path: team=${teamMatch?.league || 'none'}, vs=${vsMatch ? `${vsMatch[1]} vs ${vsMatch[2]}` : 'none'}`)
 
   if (teamMatch) {
-    // Fetch from tag_slug (200 to cover daily games + futures)
-    // Also try Gamma title search in parallel for better coverage
     const titleTerms = vsMatch
       ? [vsMatch[1].trim(), vsMatch[2].trim()]
       : teamMatch.searchTerms
 
-    const [tagEvents, titleEvents] = await Promise.all([
-      fetchEvents(new URLSearchParams({
-        _limit: '200', active: 'true', closed: 'false',
-        tag_slug: teamMatch.league, order: 'startDate', ascending: 'true',
-      })),
-      // Gamma title search: try each search term
-      Promise.all(
-        titleTerms.slice(0, 2).map(term =>
-          fetchEvents(new URLSearchParams({
-            _limit: '10', active: 'true', closed: 'false',
-            title: term, order: 'volume24hr', ascending: 'false',
-          }))
-        )
-      ).then(results => results.flat()),
-    ])
+    // Gamma API caps at 20 results per request
+    // Order by volume24hr desc: daily games have $1M-$6M volume, futures have $100K-$500K
+    // This naturally surfaces today's games first
+    const tagEvents = await fetchEvents(new URLSearchParams({
+      _limit: '20', active: 'true', closed: 'false',
+      tag_slug: teamMatch.league, order: 'volume24hr', ascending: 'false',
+    }))
 
-    // Merge and deduplicate
-    console.log(`[Search] tag_slug="${teamMatch.league}": ${tagEvents.length} events, title search: ${titleEvents.length} events`)
-    const allEvents = [...tagEvents]
-    for (const e of titleEvents) {
-      if (!allEvents.some(x => x.slug === e.slug)) allEvents.push(e)
-    }
-    console.log(`[Search] merged: ${allEvents.length} total events`)
+    console.log(`[Search] tag_slug="${teamMatch.league}": ${tagEvents.length} events (by volume)`)
+    const allEvents = tagEvents
 
     // Build all search terms: team variants + vs sides
     const allSearchTerms = [...teamMatch.searchTerms]
@@ -339,22 +324,29 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
       if (!allSearchTerms.includes(side2)) allSearchTerms.push(side2)
     }
 
-    // Score by relevance: exact "vs" title match > team name match
+    // Score by relevance: team name in title > no match
+    // allSearchTerms for "celtics" = ['celtics', 'boston']
+    // "Celtics vs. Suns" matches "celtics" → 60 + date boost 10 = 70
+    // "Thunder win Finals" does NOT match "celtics" or "boston" → 0 (filtered out)
     const scored = allEvents.map(e => {
       const titleLower = e.title.toLowerCase()
       let score = 0
-      // "X vs. Y" in title = best match (daily game)
       const matchCount = allSearchTerms.filter(t => titleLower.includes(t)).length
-      if (matchCount >= 2) score = 100  // Both teams in title
+      if (matchCount >= 2) score = 100  // Both teams in title (e.g. "Celtics vs. Suns")
       else if (matchCount === 1) score = 60  // One team in title
-      // Boost daily games (shorter slug with date pattern)
+      // Boost daily games (slug ends with YYYY-MM-DD)
       if (e.slug.match(/\d{4}-\d{2}-\d{2}$/)) score += 10
       return { event: e, score }
     })
 
+    console.log(`[Search] Scoring with terms=${JSON.stringify(allSearchTerms)}:`)
+    scored.filter(s => s.score > 0).slice(0, 8).forEach(s =>
+      console.log(`  [${s.score}] ${s.event.title} (${s.event.slug})`)
+    )
+
     const filtered = scored
       .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || b.event.volume - a.event.volume)
       .map(s => s.event)
 
     if (filtered.length > 0) return filtered.slice(0, limit)
@@ -367,22 +359,12 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   const expanded = QUERY_EXPAND[qNorm]
   const searchTerms = expanded ? [query, ...expanded] : [query]
 
-  // Fetch broad pool of trending events + Gamma title search in parallel
-  const [pool, titleResults] = await Promise.all([
-    fetchEvents(new URLSearchParams({
-      _limit: '200', active: 'true', closed: 'false',
-      order: 'volume24hr', ascending: 'false',
-    })),
-    fetchEvents(new URLSearchParams({
-      _limit: '20', active: 'true', closed: 'false',
-      title: query, order: 'volume24hr', ascending: 'false',
-    })),
-  ])
-
-  // Merge title results into pool (deduplicated)
-  for (const e of titleResults) {
-    if (!pool.some(x => x.slug === e.slug)) pool.push(e)
-  }
+  // Gamma API caps at 20 results per page. Title param is unreliable (ignored).
+  // Fetch top 20 trending events by volume
+  const pool = await fetchEvents(new URLSearchParams({
+    _limit: '20', active: 'true', closed: 'false',
+    order: 'volume24hr', ascending: 'false',
+  }))
 
   // Score each event against all search terms, take best score
   const scored = pool.map(event => {
