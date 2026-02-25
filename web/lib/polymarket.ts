@@ -148,17 +148,44 @@ const TEAM_ENTRIES: Record<string, TeamEntry> = {
   'barca':        { league: 'lal', search: ['barcelona'] },
   'atletico madrid': { league: 'lal', search: ['atletico madrid', 'atlético'] },
   'sevilla':      { league: 'lal', search: ['sevilla'] },
-  // NBA teams
+  // NBA teams (all 30)
   'lakers':       { league: 'nba', search: ['lakers', 'los angeles lakers'] },
   'celtics':      { league: 'nba', search: ['celtics', 'boston'] },
+  'boston':        { league: 'nba', search: ['celtics', 'boston'] },
   'warriors':     { league: 'nba', search: ['warriors', 'golden state'] },
   'knicks':       { league: 'nba', search: ['knicks', 'new york knicks'] },
   'bulls':        { league: 'nba', search: ['bulls', 'chicago'] },
   'heat':         { league: 'nba', search: ['heat', 'miami'] },
-  'mavs':         { league: 'nba', search: ['mavericks', 'dallas'] },
-  'mavericks':    { league: 'nba', search: ['mavericks', 'dallas'] },
+  'mavs':         { league: 'nba', search: ['mavericks', 'dallas mavericks'] },
+  'mavericks':    { league: 'nba', search: ['mavericks', 'dallas mavericks'] },
   'thunder':      { league: 'nba', search: ['thunder', 'oklahoma'] },
   'nuggets':      { league: 'nba', search: ['nuggets', 'denver'] },
+  'suns':         { league: 'nba', search: ['suns', 'phoenix'] },
+  'phoenix':      { league: 'nba', search: ['suns', 'phoenix'] },
+  'bucks':        { league: 'nba', search: ['bucks', 'milwaukee'] },
+  'sixers':       { league: 'nba', search: ['76ers', 'sixers', 'philadelphia'] },
+  '76ers':        { league: 'nba', search: ['76ers', 'sixers', 'philadelphia'] },
+  'raptors':      { league: 'nba', search: ['raptors', 'toronto'] },
+  'nets':         { league: 'nba', search: ['nets', 'brooklyn'] },
+  'hawks':        { league: 'nba', search: ['hawks', 'atlanta'] },
+  'cavaliers':    { league: 'nba', search: ['cavaliers', 'cavs', 'cleveland'] },
+  'cavs':         { league: 'nba', search: ['cavaliers', 'cavs', 'cleveland'] },
+  'pacers':       { league: 'nba', search: ['pacers', 'indiana'] },
+  'magic':        { league: 'nba', search: ['magic', 'orlando'] },
+  'wizards':      { league: 'nba', search: ['wizards', 'washington'] },
+  'hornets':      { league: 'nba', search: ['hornets', 'charlotte'] },
+  'pistons':      { league: 'nba', search: ['pistons', 'detroit'] },
+  'timberwolves': { league: 'nba', search: ['timberwolves', 'wolves', 'minnesota'] },
+  'wolves':       { league: 'nba', search: ['timberwolves', 'wolves', 'minnesota'] },
+  'pelicans':     { league: 'nba', search: ['pelicans', 'new orleans'] },
+  'grizzlies':    { league: 'nba', search: ['grizzlies', 'memphis'] },
+  'san antonio':  { league: 'nba', search: ['spurs', 'san antonio'] },
+  'san antonio spurs': { league: 'nba', search: ['spurs', 'san antonio'] },
+  'rockets':      { league: 'nba', search: ['rockets', 'houston'] },
+  'clippers':     { league: 'nba', search: ['clippers', 'la clippers'] },
+  'kings':        { league: 'nba', search: ['kings', 'sacramento'] },
+  'blazers':      { league: 'nba', search: ['blazers', 'trail blazers', 'portland'] },
+  'jazz':         { league: 'nba', search: ['jazz', 'utah'] },
   // NFL teams
   'chiefs':       { league: 'nfl', search: ['chiefs', 'kansas city'] },
   'eagles':       { league: 'nfl', search: ['eagles', 'philadelphia'] },
@@ -248,8 +275,10 @@ function scoreMatch(title: string, query: string): number {
 }
 
 export async function searchMarkets(query: string, limit = 10): Promise<EventInfo[]> {
+  console.log(`[Search] query="${query}" limit=${limit}`)
+
   if (!query) {
-    // Trending: no query
+    console.log(`[Search] Path: trending (no query)`)
     return fetchEvents(new URLSearchParams({
       _limit: String(limit), active: 'true', closed: 'false',
       order: 'volume24hr', ascending: 'false',
@@ -259,6 +288,7 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   // 1. Check if query maps to a sports league ("liga mx", "nba", "f1")
   const leagueSlug = detectLeague(query)
   if (leagueSlug) {
+    console.log(`[Search] Path: league tag="${leagueSlug}"`)
     return fetchEvents(new URLSearchParams({
       _limit: String(limit), active: 'true', closed: 'false',
       tag_slug: leagueSlug, order: 'startDate', ascending: 'true',
@@ -266,31 +296,93 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   }
 
   // 2. Check if query matches a team name ("Pumas", "Chivas", "Lakers")
+  //    Also detect "X vs Y" patterns to extract both teams
+  const vsMatch = query.match(/(.+?)\s+(?:vs\.?|versus|contra|v)\s+(.+)/i)
   const teamMatch = detectTeamLeague(query)
+  console.log(`[Search] Path: team=${teamMatch?.league || 'none'}, vs=${vsMatch ? `${vsMatch[1]} vs ${vsMatch[2]}` : 'none'}`)
+
   if (teamMatch) {
-    const allEvents = await fetchEvents(new URLSearchParams({
-      _limit: '50', active: 'true', closed: 'false',
-      tag_slug: teamMatch.league, order: 'startDate', ascending: 'true',
-    }))
-    const filtered = allEvents.filter(e => {
+    // Fetch from tag_slug (200 to cover daily games + futures)
+    // Also try Gamma title search in parallel for better coverage
+    const titleTerms = vsMatch
+      ? [vsMatch[1].trim(), vsMatch[2].trim()]
+      : teamMatch.searchTerms
+
+    const [tagEvents, titleEvents] = await Promise.all([
+      fetchEvents(new URLSearchParams({
+        _limit: '200', active: 'true', closed: 'false',
+        tag_slug: teamMatch.league, order: 'startDate', ascending: 'true',
+      })),
+      // Gamma title search: try each search term
+      Promise.all(
+        titleTerms.slice(0, 2).map(term =>
+          fetchEvents(new URLSearchParams({
+            _limit: '10', active: 'true', closed: 'false',
+            title: term, order: 'volume24hr', ascending: 'false',
+          }))
+        )
+      ).then(results => results.flat()),
+    ])
+
+    // Merge and deduplicate
+    console.log(`[Search] tag_slug="${teamMatch.league}": ${tagEvents.length} events, title search: ${titleEvents.length} events`)
+    const allEvents = [...tagEvents]
+    for (const e of titleEvents) {
+      if (!allEvents.some(x => x.slug === e.slug)) allEvents.push(e)
+    }
+    console.log(`[Search] merged: ${allEvents.length} total events`)
+
+    // Build all search terms: team variants + vs sides
+    const allSearchTerms = [...teamMatch.searchTerms]
+    if (vsMatch) {
+      const side2 = vsMatch[2].trim().toLowerCase()
+      if (!allSearchTerms.includes(side2)) allSearchTerms.push(side2)
+    }
+
+    // Score by relevance: exact "vs" title match > team name match
+    const scored = allEvents.map(e => {
       const titleLower = e.title.toLowerCase()
-      return teamMatch.searchTerms.some(term => titleLower.includes(term))
+      let score = 0
+      // "X vs. Y" in title = best match (daily game)
+      const matchCount = allSearchTerms.filter(t => titleLower.includes(t)).length
+      if (matchCount >= 2) score = 100  // Both teams in title
+      else if (matchCount === 1) score = 60  // One team in title
+      // Boost daily games (shorter slug with date pattern)
+      if (e.slug.match(/\d{4}-\d{2}-\d{2}$/)) score += 10
+      return { event: e, score }
     })
+
+    const filtered = scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(s => s.event)
+
     if (filtered.length > 0) return filtered.slice(0, limit)
     return allEvents.slice(0, limit)
   }
 
-  // 3. Smart general search: fetch large pool, score & filter locally
-  //    (Gamma API title search is unreliable, so we filter ourselves)
+  // 3. Smart general search: fetch large pool + Gamma title search in parallel
+  //    (Gamma API title search is unreliable alone, so we combine strategies)
   const qNorm = query.toLowerCase().trim()
   const expanded = QUERY_EXPAND[qNorm]
   const searchTerms = expanded ? [query, ...expanded] : [query]
 
-  // Fetch a broad pool of active events
-  const pool = await fetchEvents(new URLSearchParams({
-    _limit: '200', active: 'true', closed: 'false',
-    order: 'volume24hr', ascending: 'false',
-  }))
+  // Fetch broad pool of trending events + Gamma title search in parallel
+  const [pool, titleResults] = await Promise.all([
+    fetchEvents(new URLSearchParams({
+      _limit: '200', active: 'true', closed: 'false',
+      order: 'volume24hr', ascending: 'false',
+    })),
+    fetchEvents(new URLSearchParams({
+      _limit: '20', active: 'true', closed: 'false',
+      title: query, order: 'volume24hr', ascending: 'false',
+    })),
+  ])
+
+  // Merge title results into pool (deduplicated)
+  for (const e of titleResults) {
+    if (!pool.some(x => x.slug === e.slug)) pool.push(e)
+  }
 
   // Score each event against all search terms, take best score
   const scored = pool.map(event => {
@@ -308,14 +400,19 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
     .map(s => s.event)
     .slice(0, limit)
 
-  // If local filtering found results, return them
   if (matched.length > 0) return matched
 
-  // 4. Last resort: try Gamma title search anyway (might work for longer queries)
-  return fetchEvents(new URLSearchParams({
-    _limit: String(limit), active: 'true', closed: 'false',
-    title: query, order: 'volume24hr', ascending: 'false',
-  }))
+  // 4. Last resort: try broader Gamma search with individual words
+  const words = query.split(/\s+/).filter(w => w.length > 2)
+  if (words.length > 0) {
+    const lastResort = await fetchEvents(new URLSearchParams({
+      _limit: String(limit), active: 'true', closed: 'false',
+      title: words[0], order: 'volume24hr', ascending: 'false',
+    }))
+    if (lastResort.length > 0) return lastResort
+  }
+
+  return []
 }
 
 export async function getMarketBySlug(slug: string): Promise<MarketInfo | null> {
