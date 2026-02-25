@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetWhisper - Features</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  .container {
+    max-width: 1200px;
+    width: 100%;
+  }
+
+  .title {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 900;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #a78bfa, #6d28d9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 15px;
+    color: #6b7280;
+    margin-bottom: 48px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+  }
+
+  .card {
+    background: #111118;
+    border: 1px solid #1f1f2e;
+    border-radius: 16px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+
+  .card.radar::before { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+  .card.social::before { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+  .card.tech::before { background: linear-gradient(90deg, #a78bfa, #6d28d9); }
+
+  .card-icon {
+    font-size: 36px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 20px;
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .card.radar .card-label { background: #f59e0b20; color: #f59e0b; }
+  .card.social .card-label { background: #3b82f620; color: #3b82f6; }
+  .card.tech .card-label { background: #a78bfa20; color: #a78bfa; }
+
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #d1d5db;
+  }
+
+  .flow-step .num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .card.radar .num { background: #f59e0b30; color: #f59e0b; }
+  .card.social .num { background: #3b82f630; color: #3b82f6; }
+  .card.tech .num { background: #a78bfa30; color: #a78bfa; }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .tag {
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  .tag.amber { background: #f59e0b18; color: #fbbf24; border: 1px solid #f59e0b30; }
+  .tag.blue { background: #3b82f618; color: #60a5fa; border: 1px solid #3b82f630; }
+  .tag.purple { background: #a78bfa18; color: #c4b5fd; border: 1px solid #a78bfa30; }
+
+  .divider {
+    height: 1px;
+    background: #1f1f2e;
+    margin: 16px 0;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 900;
+  }
+
+  .card.radar .stat-value { color: #f59e0b; }
+  .card.social .stat-value { color: #3b82f6; }
+
+  .stat-label {
+    font-size: 10px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .modes {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .mode {
+    flex: 1;
+    background: #0a0a12;
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+    border: 1px solid #1f1f2e;
+  }
+
+  .mode-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #60a5fa;
+  }
+
+  .mode-desc {
+    font-size: 10px;
+    color: #6b7280;
+    line-height: 1.4;
+  }
+
+  .tech-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .tech-item {
+    background: #0a0a12;
+    border: 1px solid #1f1f2e;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+
+  .tech-item .icon { font-size: 20px; margin-bottom: 4px; }
+  .tech-item .name { font-size: 11px; font-weight: 700; color: #e5e7eb; }
+  .tech-item .detail { font-size: 9px; color: #6b7280; margin-top: 2px; }
+
+  .arrow-down {
+    text-align: center;
+    color: #374151;
+    font-size: 14px;
+    margin: 4px 0;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="title">BetWhisper Intelligence Layer</div>
+  <div class="subtitle">Whale detection, social betting, and the tech behind it</div>
+
+  <div class="grid">
+
+    <!-- AGENT RADAR -->
+    <div class="card radar">
+      <div class="card-icon">&#x1F6F0;&#xFE0F;</div>
+      <div class="card-title">Agent Radar</div>
+      <div class="card-label">Whale Intelligence</div>
+
+      <div class="flow">
+        <div class="flow-step">
+          <span class="num">1</span>
+          Scan 196 token holder wallets
+        </div>
+        <div class="flow-step">
+          <span class="num">2</span>
+          Analyze 12 on-chain attributes
+        </div>
+        <div class="flow-step">
+          <span class="num">3</span>
+          Detect bots with 7 signals
+        </div>
+        <div class="flow-step">
+          <span class="num">4</span>
+          Classify strategy per wallet
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="tags">
+        <span class="tag amber">Whale</span>
+        <span class="tag amber">Sniper</span>
+        <span class="tag amber">Flipper</span>
+        <span class="tag amber">Bot</span>
+        <span class="tag amber">Human</span>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-value">196</div>
+          <div class="stat-label">Wallets</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">12</div>
+          <div class="stat-label">Attributes</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">7</div>
+          <div class="stat-label">Signals</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GROUP DRAFTS -->
+    <div class="card social">
+      <div class="card-icon">&#x1F46B;</div>
+      <div class="card-title">Group Drafts</div>
+      <div class="card-label">Social Betting</div>
+
+      <div class="modes">
+        <div class="mode">
+          <div class="mode-title">Leaderboard</div>
+          <div class="mode-desc">Pick your own markets. Ranked by total P&L.</div>
+        </div>
+        <div class="mode">
+          <div class="mode-title">Draft Pool</div>
+          <div class="mode-desc">One market. Everyone bets. Pure conviction.</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="flow">
+        <div class="flow-step">
+          <span class="num">1</span>
+          Create group + QR code
+        </div>
+        <div class="flow-step">
+          <span class="num">2</span>
+          Friend scans QR to join
+        </div>
+        <div class="flow-step">
+          <span class="num">3</span>
+          Compete on P&L rankings
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="background:#0a0a12;border-radius:10px;padding:14px;border:1px solid #1f1f2e;text-align:center;">
+        <div style="font-size:11px;font-weight:700;color:#fbbf24;margin-bottom:4px;">&#x1F512; AI Gate</div>
+        <div style="font-size:11px;color:#6b7280;">Invite 1 friend to unlock AI features</div>
+        <div style="font-size:10px;color:#374151;margin-top:4px;">Viral growth loop</div>
+      </div>
+    </div>
+
+    <!-- TECH STACK -->
+    <div class="card tech">
+      <div class="card-icon">&#x2699;&#xFE0F;</div>
+      <div class="card-title">Tech Stack</div>
+      <div class="card-label">Built for Speed</div>
+
+      <div class="tech-grid">
+        <div class="tech-item">
+          <div class="icon">&#x25B2;</div>
+          <div class="name">Next.js 15</div>
+          <div class="detail">React 19 + Tailwind</div>
+        </div>
+        <div class="tech-item">
+          <div class="icon">&#x1F34E;</div>
+          <div class="name">SwiftUI</div>
+          <div class="detail">iOS + Ray-Ban</div>
+        </div>
+        <div class="tech-item">
+          <div class="icon">&#x1F916;</div>
+          <div class="name">Gemini Live</div>
+          <div class="detail">Voice + Analysis</div>
+        </div>
+        <div class="tech-item">
+          <div class="icon">&#x1F7E3;</div>
+          <div class="name">Polymarket</div>
+          <div class="detail">CLOB Execution</div>
+        </div>
+        <div class="tech-item">
+          <div class="icon">&#x26A1;</div>
+          <div class="name">Monad</div>
+          <div class="detail">Intent + Payments</div>
+        </div>
+        <div class="tech-item">
+          <div class="icon">&#x1F418;</div>
+          <div class="name">Neon Postgres</div>
+          <div class="detail">Serverless DB</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="text-align:center;">
+        <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">Bilingual Support</div>
+        <div class="tags" style="justify-content:center;">
+          <span class="tag purple">EN</span>
+          <span class="tag purple">ES</span>
+          <span class="tag purple">PT</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

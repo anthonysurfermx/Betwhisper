@@ -2781,6 +2781,10 @@ export default function PredictChat() {
     steps[2].status = 'confirmed'
     steps[2].detail = `${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
     updateTimeline(steps)
+
+    // Add a text-based bet result message for conversation persistence
+    const txShort = clobResult.txHash ? `${clobResult.txHash.slice(0, 10)}...${clobResult.txHash.slice(-6)}` : ''
+    addMessage('assistant', `Bet Confirmed: $${amount} on ${side} — ${slug}${txShort ? `\nTx: ${txShort}` : ''}`)
   }, [isConnected, signer, address, messages, addMessage, updateMessage, lang])
 
   const showPortfolio = useCallback(async () => {
