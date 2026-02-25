@@ -332,7 +332,7 @@ export default function BetWhisperLanding() {
               {
                 num: '02',
                 title: 'Scan',
-                desc: 'Agent Radar scans token holders. Weighted consensus, conviction levels, bot detection.',
+                desc: 'Agent Radar scans holders with 7-signal bot detection, smart money tracking, convergence scores, and alpha signals.',
               },
               {
                 num: '03',
@@ -429,70 +429,233 @@ export default function BetWhisperLanding() {
         </div>
       </section>
 
-      {/* Agent Shield */}
-      <section id="agent-shield" ref={shield.ref} className="border-b border-[--border]">
+      {/* Agent Radar — Powered by DeFi Mexico */}
+      <section id="agent-radar" ref={shield.ref} className="border-b border-[--border]">
         <div className="max-w-[1200px] mx-auto">
-          <div className="grid md:grid-cols-2">
-            {/* Left: explanation */}
-            <div className={`px-6 py-16 md:py-24 md:border-r border-[--border] transition-all duration-700 ${
+          {/* Section header */}
+          <div className={`px-6 py-16 md:py-24 border-b border-[--border] transition-all duration-700 ${
+            shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-2 h-2 bg-amber-500 rounded-full" />
+              <span className="text-[13px] text-amber-500 font-semibold">Polymarket Agent Radar API v1</span>
+              <span className="text-[11px] text-white/30">by</span>
+              <span className="text-[13px] text-[#836EF9] font-semibold">DeFi Mexico</span>
+            </div>
+            <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight max-w-3xl mb-4">
+              Full-spectrum intelligence for prediction markets
+            </h2>
+            <p className="text-[14px] text-[--text-secondary] leading-relaxed max-w-2xl mb-6">
+              Agent Radar scans every holder, detects bot manipulation, tracks smart money movements, computes convergence scores, and surfaces alpha signals — all before you bet. Now available as a standalone REST API.
+            </p>
+            <a
+              href="https://github.com/anthonysurfermx/polymarket-agent-radar-API"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-[13px] text-white/60 hover:text-white transition-colors duration-200"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              polymarket-agent-radar-API
+              <ArrowUpRight className="w-3 h-3" />
+            </a>
+          </div>
+
+          {/* Intelligence Features Grid */}
+          <div className="grid md:grid-cols-3">
+            {/* Bot Detection */}
+            <div className={`px-6 py-10 border-r border-[--border] border-b md:border-b-0 transition-all duration-700 ${
               shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-2 h-2 bg-amber-500 rounded-full" />
-                <span className="text-[13px] text-amber-500 font-semibold">Agent Shield</span>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                <span className="text-[11px] text-amber-500 font-semibold tracking-wide">BOT DETECTION</span>
               </div>
-              <h2 className="text-[clamp(1.8rem,4vw,2.8rem)] font-bold tracking-tight mb-6">
-                Protection against AI market manipulation
-              </h2>
-              <p className="text-[14px] text-[--text-secondary] leading-relaxed mb-8">
-                Before every bet, BetWhisper scores each token holder to separate human whales from AI agents and surface the real signal.
+              <h3 className="text-[18px] font-bold mb-3">7-Signal Bot Scoring</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-4">
+                Behavioral fingerprinting across interval regularity, split/merge activity, sizing consistency, 24/7 patterns, win rate extremes, market concentration, and ghost whale detection.
               </p>
-              <div className="space-y-3">
-                {[
-                  'Detects bot manipulation before you bet',
-                  'Separates human whales from AI agents',
-                  'Weighted consensus filters noise from signal',
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-1 h-1 bg-white rounded-full" />
-                    <span className="text-[14px] text-white/80">{item}</span>
-                  </div>
-                ))}
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Strategies detected</span>
+                  <span className="text-white/70 font-mono">5 archetypes</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Classifications</span>
+                  <span className="text-white/70 font-mono">bot · likely-bot · mixed · human</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Strategy types</span>
+                  <span className="text-white/70 font-mono">MM · Hybrid · Sniper · Momentum</span>
+                </div>
               </div>
             </div>
 
-            {/* Right: visual card */}
-            <div className={`px-6 py-16 md:py-24 flex items-center transition-all duration-700 delay-200 ${
+            {/* Smart Money Intelligence */}
+            <div className={`px-6 py-10 border-r border-[--border] border-b md:border-b-0 transition-all duration-700 delay-100 ${
               shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              <div className="w-full border border-amber-500/20 bg-amber-500/[0.02]">
-                <div className="flex items-center gap-2 px-5 py-3 border-b border-amber-500/20">
-                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                  <span className="text-[11px] text-amber-500 font-semibold tracking-wide">AGENT SHIELD ACTIVE</span>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                <span className="text-[11px] text-emerald-500 font-semibold tracking-wide">SMART MONEY</span>
+              </div>
+              <h3 className="text-[18px] font-bold mb-3">Whale Tracking Engine</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-4">
+                Scans top PnL traders from the Polymarket leaderboard. Tracks their positions, detects consensus markets, analyzes portfolio construction, and surfaces whale entry/exit signals.
+              </p>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Leaderboard scan</span>
+                  <span className="text-white/70 font-mono">up to 50 traders</span>
                 </div>
-                <div className="px-5 py-4 space-y-3 text-[13px]">
-                  <div className="flex justify-between py-2 border-b border-amber-500/10">
-                    <span className="text-[--text-secondary]">Bot activity</span>
-                    <span className="text-amber-400 font-semibold">2 agents</span>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Edge tracker</span>
+                  <span className="text-white/70 font-mono">entry vs market price</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Whale signals</span>
+                  <span className="text-white/70 font-mono">72h window · conviction %</span>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Scores */}
+            <div className={`px-6 py-10 border-b md:border-b-0 transition-all duration-700 delay-200 ${
+              shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1.5 h-1.5 bg-[#836EF9] rounded-full" />
+                <span className="text-[11px] text-[#836EF9] font-semibold tracking-wide">AI SCORES</span>
+              </div>
+              <h3 className="text-[18px] font-bold mb-3">3 Intelligence Layers</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-4">
+                Convergence Score (5-component, 0-100), Alpha Signals (5 cross-referenced signal types), and Trader Reliability Score — computed in real-time from live market data.
+              </p>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Convergence</span>
+                  <span className="text-white/70 font-mono">consensus · edge · momentum · quality</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Alpha signals</span>
+                  <span className="text-white/70 font-mono">5 types · confidence ranked</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Reliability</span>
+                  <span className="text-white/70 font-mono">win rate · PnL · diversification</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* API Endpoints Visual */}
+          <div className="border-t border-[--border]">
+            <div className="grid md:grid-cols-2">
+              {/* Left: API card */}
+              <div className={`px-6 py-10 md:border-r border-[--border] transition-all duration-700 delay-300 ${
+                shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}>
+                <div className="border border-[--border-light] bg-black">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-[--border-light]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                      <span className="text-[11px] text-[--text-secondary] tracking-wide">API v1 Endpoints</span>
+                    </div>
+                    <span className="text-[10px] text-white/30 font-mono">13 routes</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-amber-500/10">
-                    <span className="text-[--text-secondary]">Interval regularity</span>
-                    <span className="text-red-400 font-semibold">HIGH</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-amber-500/10">
-                    <span className="text-[--text-secondary]">24/7 trading pattern</span>
-                    <span className="text-red-400 font-semibold">DETECTED</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-amber-500/10">
-                    <span className="text-[--text-secondary]">Human whale consensus</span>
-                    <span className="text-emerald-400 font-semibold">78% YES</span>
-                  </div>
-                  <div className="pt-2">
-                    <span className="text-[12px] text-amber-500/60">
-                      Proceed with caution. AI agents may inflate YES side.
-                    </span>
+                  <div className="px-5 py-4 space-y-1.5 font-mono text-[11px]">
+                    {[
+                      { method: 'GET', path: '/smart-money', tag: 'HEAVY' },
+                      { method: 'GET', path: '/smart-money/alpha', tag: '' },
+                      { method: 'GET', path: '/smart-money/convergence', tag: '' },
+                      { method: 'GET', path: '/wallet/:address', tag: '' },
+                      { method: 'GET', path: '/market/:slug', tag: '' },
+                      { method: 'GET', path: '/trader/:address/reliability', tag: '' },
+                      { method: 'GET', path: '/bonds', tag: '' },
+                      { method: 'GET', path: '/orderbook/:tokenId', tag: '' },
+                      { method: 'GET', path: '/open-interest/:conditionId', tag: '' },
+                      { method: 'POST', path: '/explain', tag: 'SSE' },
+                    ].map((ep, i) => (
+                      <div key={i} className="flex items-center gap-3 py-1">
+                        <span className={`w-8 text-[10px] font-bold ${ep.method === 'POST' ? 'text-amber-500' : 'text-emerald-500'}`}>{ep.method}</span>
+                        <span className="text-white/50">/api/v1{ep.path}</span>
+                        {ep.tag && (
+                          <span className={`text-[9px] px-1.5 py-0.5 ${
+                            ep.tag === 'HEAVY' ? 'bg-amber-500/10 text-amber-500' : 'bg-[#836EF9]/10 text-[#836EF9]'
+                          }`}>{ep.tag}</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Right: Sample response */}
+              <div className={`px-6 py-10 transition-all duration-700 delay-400 ${
+                shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}>
+                <div className="border border-amber-500/20 bg-amber-500/[0.02]">
+                  <div className="flex items-center gap-2 px-5 py-3 border-b border-amber-500/20">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                    <span className="text-[11px] text-amber-500 font-semibold tracking-wide">AGENT SHIELD ACTIVE</span>
+                  </div>
+                  <div className="px-5 py-4 space-y-3 text-[13px]">
+                    <div className="flex justify-between py-2 border-b border-amber-500/10">
+                      <span className="text-[--text-secondary]">Bot score</span>
+                      <span className="text-amber-400 font-semibold">82/100 — bot</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-amber-500/10">
+                      <span className="text-[--text-secondary]">Strategy</span>
+                      <span className="text-red-400 font-semibold">MARKET MAKER (The House)</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-amber-500/10">
+                      <span className="text-[--text-secondary]">Convergence score</span>
+                      <span className="text-emerald-400 font-semibold">72 — MODERATE</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-amber-500/10">
+                      <span className="text-[--text-secondary]">Alpha signal</span>
+                      <span className="text-[#836EF9] font-semibold">WHALE CONVERGENCE (89%)</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-amber-500/10">
+                      <span className="text-[--text-secondary]">Trader reliability</span>
+                      <span className="text-emerald-400 font-semibold">68 — RELIABLE</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-amber-500/10">
+                      <span className="text-[--text-secondary]">Human whale consensus</span>
+                      <span className="text-emerald-400 font-semibold">78% YES</span>
+                    </div>
+                    <div className="pt-2">
+                      <span className="text-[12px] text-amber-500/60">
+                        3 whales bought YES in 24h. High conviction cluster detected.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Attribution bar */}
+          <div className="border-t border-[--border] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] text-white/40">Powered by</span>
+              <span className="text-[13px] font-semibold text-[#836EF9]">DeFi Mexico</span>
+              <span className="text-[11px] text-white/20">|</span>
+              <span className="text-[12px] text-white/40 font-mono">Polymarket Agent Radar API v1</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://github.com/anthonysurfermx/polymarket-agent-radar-API"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[12px] text-[--text-tertiary] hover:text-white transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                View API Source
+                <ArrowUpRight className="w-3 h-3" />
+              </a>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                <span className="text-[11px] text-emerald-500/80">13 endpoints live</span>
               </div>
             </div>
           </div>
@@ -649,7 +812,7 @@ export default function BetWhisperLanding() {
                 { name: 'Polymarket CLOB', desc: 'Order execution on Polygon', url: 'https://polymarket.com' },
                 { name: 'Gemini Live', desc: 'Multimodal AI analysis', url: 'https://deepmind.google/technologies/gemini/' },
                 { name: 'SFSpeechRecognizer', desc: 'On-device voice', url: 'https://developer.apple.com/documentation/speech' },
-                { name: 'Agent Radar', desc: 'Whale detection + bot scoring', url: '#agent-shield' },
+                { name: 'Agent Radar API', desc: 'Smart money intelligence by DeFi Mexico', url: 'https://github.com/anthonysurfermx/polymarket-agent-radar-API' },
                 { name: 'Meta Ray-Ban', desc: 'Smart glasses interface', url: 'https://www.ray-ban.com/usa/ray-ban-meta-smart-glasses' },
               ].map(tech => (
                 <a
