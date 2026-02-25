@@ -1,0 +1,71 @@
+{
+  "run_date": "2026-02-17T19:49:07.910028+00:00",
+  "total_wallets_scored": 196,
+  "eligible_wallets": 29,
+  "total_trades_in_timeline": 597372,
+  "results_by_threshold": {
+    "0.6": {
+      "threshold": 0.6,
+      "total_signals": 6460,
+      "verified_signals": 95,
+      "correct_signals": 32,
+      "accuracy": 0.3368421052631579,
+      "avg_consensus": 0.9638611455108359,
+      "avg_wallets": 3.2074303405572757
+    },
+    "0.65": {
+      "threshold": 0.65,
+      "total_signals": 6334,
+      "verified_signals": 95,
+      "correct_signals": 32,
+      "accuracy": 0.3368421052631579,
+      "avg_consensus": 0.9724347963372276,
+      "avg_wallets": 3.21013577518156
+    },
+    "0.7": {
+      "threshold": 0.7,
+      "total_signals": 6198,
+      "verified_signals": 94,
+      "correct_signals": 32,
+      "accuracy": 0.3404255319148936,
+      "avg_consensus": 0.981009841884479,
+      "avg_wallets": 3.2015166182639563
+    },
+    "0.75": {
+      "threshold": 0.75,
+      "total_signals": 6077,
+      "verified_signals": 92,
+      "correct_signals": 30,
+      "accuracy": 0.32608695652173914,
+      "avg_consensus": 0.9875746256376502,
+      "avg_wallets": 3.1729471778838243
+    },
+    "0.8": {
+      "threshold": 0.8,
+      "total_signals": 5966,
+      "verified_signals": 89,
+      "correct_signals": 28,
+      "accuracy": 0.3146067415730337,
+      "avg_consensus": 0.9929289306067718,
+      "avg_wallets": 3.1312437143814953
+    },
+    "0.85": {
+      "threshold": 0.85,
+      "total_signals": 5883,
+      "verified_signals": 87,
+      "correct_signals": 27,
+      "accuracy": 0.3103448275862069,
+      "avg_consensus": 0.996278599354071,
+      "avg_wallets": 3.1004589495155535
+    },
+    "0.9": {
+      "threshold": 0.9,
+      "total_signals": 5821,
+      "verified_signals": 86,
+      "correct_signals": 27,
+      "accuracy": 0.313953488372093,
+      "avg_consensus": 0.9982769283628241,
+      "avg_wallets": 3.0963751932657617
+    }
+  }
+}
