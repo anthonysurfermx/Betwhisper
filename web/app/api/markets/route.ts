@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ events: FALLBACK_EVENTS, cached: true })
     }
 
-    return NextResponse.json({ events, cached: false })
+    return NextResponse.json({ events, cached: false, v: 2 })
   } catch (err) {
     console.error(`[Markets API] Error:`, err)
     return NextResponse.json({ events: FALLBACK_EVENTS, cached: true })
