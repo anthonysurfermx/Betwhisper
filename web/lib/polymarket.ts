@@ -307,15 +307,31 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
       : teamMatch.searchTerms
 
     // Gamma API caps at 20 results per request
-    // Order by volume24hr desc: daily games have $1M-$6M volume, futures have $100K-$500K
-    // This naturally surfaces today's games first
-    const tagEvents = await fetchEvents(new URLSearchParams({
-      _limit: '20', active: 'true', closed: 'false',
-      tag_slug: teamMatch.league, order: 'volume24hr', ascending: 'false',
-    }))
+    // Fetch TWO pages in parallel: by volume (catches high-profile events) +
+    // by endDate ASC (catches today's/tonight's games that end soonest)
+    // This ensures low-volume daily games don't get pushed out by high-volume futures
+    const [byVolume, byEndDate] = await Promise.all([
+      fetchEvents(new URLSearchParams({
+        _limit: '20', active: 'true', closed: 'false',
+        tag_slug: teamMatch.league, order: 'volume24hr', ascending: 'false',
+      })),
+      fetchEvents(new URLSearchParams({
+        _limit: '20', active: 'true', closed: 'false',
+        tag_slug: teamMatch.league, order: 'endDate', ascending: 'true',
+      })),
+    ])
 
-    console.log(`[Search] tag_slug="${teamMatch.league}": ${tagEvents.length} events (by volume)`)
-    const allEvents = tagEvents
+    // Merge and dedupe by slug
+    const seen = new Set<string>()
+    const allEvents: EventInfo[] = []
+    for (const e of [...byVolume, ...byEndDate]) {
+      if (!seen.has(e.slug)) {
+        seen.add(e.slug)
+        allEvents.push(e)
+      }
+    }
+
+    console.log(`[Search] tag_slug="${teamMatch.league}": ${byVolume.length} by volume + ${byEndDate.length} by endDate = ${allEvents.length} unique`)
 
     // Build all search terms: team variants + vs sides
     const allSearchTerms = [...teamMatch.searchTerms]
@@ -324,11 +340,15 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
       if (!allSearchTerms.includes(side2)) allSearchTerms.push(side2)
     }
 
+    // Filter out events whose endDate has already passed (stale games from Gamma API)
+    const now = new Date()
+    const liveEvents = allEvents.filter(e => !e.endDate || new Date(e.endDate) > now)
+
     // Score by relevance: team name in title > no match
     // allSearchTerms for "celtics" = ['celtics', 'boston']
     // "Celtics vs. Suns" matches "celtics" → 60 + date boost 10 = 70
     // "Thunder win Finals" does NOT match "celtics" or "boston" → 0 (filtered out)
-    const scored = allEvents.map(e => {
+    const scored = liveEvents.map(e => {
       const titleLower = e.title.toLowerCase()
       let score = 0
       const matchCount = allSearchTerms.filter(t => titleLower.includes(t)).length
