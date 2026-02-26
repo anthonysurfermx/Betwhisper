@@ -330,6 +330,29 @@ public struct MarketItem: Decodable {
     public let noPrice: Double?
     public let image: String?
     public let endDate: String?
+    public let outcomes: [String]?
+
+    /// Returns the actual outcome labels (e.g. ["Lakers", "Suns"] or ["Yes", "No"])
+    public var outcomeLabels: [String] {
+        outcomes ?? ["Yes", "No"]
+    }
+
+    /// Maps a side string to the correct outcomeIndex.
+    /// Supports both standard "Yes"/"No" and team names like "Lakers"/"Suns".
+    public func outcomeIndex(for side: String) -> Int {
+        let labels = outcomeLabels
+        let sideLower = side.lowercased()
+        // Exact match first
+        if let idx = labels.firstIndex(where: { $0.lowercased() == sideLower }) {
+            return idx
+        }
+        // Partial match (e.g. "lakers" matches "Los Angeles Lakers")
+        if let idx = labels.firstIndex(where: { $0.lowercased().contains(sideLower) }) {
+            return idx
+        }
+        // Fallback: Yes=0, No=1
+        return sideLower == "no" ? 1 : 0
+    }
 }
 
 public struct MarketsResponse: Decodable {

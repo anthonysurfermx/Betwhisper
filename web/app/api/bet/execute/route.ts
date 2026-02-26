@@ -140,7 +140,9 @@ export async function POST(request: NextRequest) {
   console.log(`[Payment Gate] Verified: ${verification.value} MON from ${verification.from} (~$${verifiedAmountUSD.toFixed(2)})`)
 
   // Insert order as PENDING before CLOB execution (locks the monadTxHash)
-  const side = outcomeIndex === 0 ? 'Yes' : 'No'
+  // Resolve side label: use client-provided side if available, fallback to Yes/No
+  const { side: clientSide } = body
+  const side = clientSide || (outcomeIndex === 0 ? 'Yes' : 'No')
   await sql`
     INSERT INTO orders (monad_tx_hash, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, mon_paid, mon_price_usd, status)
     VALUES (${monadTxHash}, ${verification.from || ''}, ${marketSlug}, ${conditionId}, ${side},

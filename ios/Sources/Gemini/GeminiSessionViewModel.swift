@@ -139,11 +139,11 @@ private enum VoiceSwapTools {
                 ] as [String: Any],
                 "side": [
                     "type": "string",
-                    "description": "The side to bet on: 'Yes' or 'No'"
+                    "description": "The outcome to bet on. Use the exact outcome name from search_markets (e.g., 'Lakers', 'Suns', 'Yes', 'No')"
                 ] as [String: Any],
                 "amount": [
                     "type": "string",
-                    "description": "Amount in MON to bet (e.g., '0.01')"
+                    "description": "Amount in USD to bet (e.g., '1')"
                 ] as [String: Any]
             ] as [String: Any],
             "required": ["market_slug", "side", "amount"]
@@ -680,12 +680,15 @@ class GeminiSessionViewModel: ObservableObject {
                     var storedMarkets: [MarketItem] = []
                     for event in response.events.prefix(3) {
                         if let market = event.markets?.first {
+                            let labels = market.outcomeLabels
                             marketsResult.append([
                                 "question": market.question,
                                 "conditionId": market.conditionId,
                                 "slug": market.slug,
-                                "yesPrice": market.yesPrice ?? 0,
-                                "noPrice": market.noPrice ?? 0,
+                                "outcome1": labels[0],
+                                "outcome1_price": market.yesPrice ?? 0,
+                                "outcome2": labels.count > 1 ? labels[1] : "No",
+                                "outcome2_price": market.noPrice ?? 0,
                                 "volume": market.volume ?? 0,
                             ])
                             storedMarkets.append(market)
@@ -764,6 +767,15 @@ class GeminiSessionViewModel: ObservableObject {
                     break
                 }
 
+                // Resolve outcomeIndex using stored market outcomes (supports "Lakers", "Suns", etc.)
+                let market = self.lastSearchedMarkets?.first(where: { $0.conditionId == conditionId })
+                    ?? self.lastSearchedMarkets?.first(where: { $0.slug == marketSlug })
+                let outcomeIndex = market?.outcomeIndex(for: side) ?? (side.lowercased() == "no" ? 1 : 0)
+                let resolvedSide = market?.outcomeLabels[safe: outcomeIndex] ?? side
+
+                NSLog("[place_bet] side='%@' resolved to outcomeIndex=%d ('%@') for market=%@",
+                      side, outcomeIndex, resolvedSide, marketSlug)
+
                 // Step 1: Fetch MON price and send intent to deposit address
                 let depositAddress = "0x530aBd0674982BAf1D16fd7A52E2ea510E74C8c3"
                 let amountUSD = Double(amount) ?? 1.0
@@ -783,7 +795,7 @@ class GeminiSessionViewModel: ObservableObject {
 
                 var monadTxHash: String? = nil
                 if VoiceSwapWallet.shared.isCreated {
-                    let metadata = "{\"protocol\":\"betwhisper\",\"market\":\"\(marketSlug)\",\"side\":\"\(side)\",\"amount_usd\":\(amountUSD),\"mon_price\":\(monPriceUSD),\"ts\":\(Int(Date().timeIntervalSince1970))}"
+                    let metadata = "{\"protocol\":\"betwhisper\",\"market\":\"\(marketSlug)\",\"side\":\"\(resolvedSide)\",\"outcome_index\":\(outcomeIndex),\"amount_usd\":\(amountUSD),\"mon_price\":\(monPriceUSD),\"ts\":\(Int(Date().timeIntervalSince1970))}"
                     let dataHex = "0x" + (metadata.data(using: .utf8) ?? Data()).map { String(format: "%02x", $0) }.joined()
                     monadTxHash = try? await VoiceSwapWallet.shared.sendTransaction(to: depositAddress, value: valueHex, data: dataHex)
                 }
@@ -792,7 +804,6 @@ class GeminiSessionViewModel: ObservableObject {
                 }
 
                 // Step 2: Execute on Polymarket CLOB
-                let outcomeIndex = side.lowercased() == "yes" ? 0 : 1
                 do {
                     let clobResult = try await VoiceSwapAPIClient.shared.executeClobBet(
                         conditionId: conditionId,
@@ -806,20 +817,20 @@ class GeminiSessionViewModel: ObservableObject {
                     if clobResult.success == true {
                         // Record bet
                         _ = try? await VoiceSwapAPIClient.shared.recordBet(
-                            marketSlug: marketSlug, side: side, amount: amount,
+                            marketSlug: marketSlug, side: resolvedSide, amount: amount,
                             walletAddress: VoiceSwapWallet.shared.isCreated ? VoiceSwapWallet.shared.address : "demo",
                             txHash: clobResult.polygonTxHash ?? clobResult.txHash ?? ""
                         )
                         result = [
                             "status": "bet_confirmed",
                             "market": marketSlug,
-                            "side": side,
+                            "side": resolvedSide,
                             "amount": amount,
                             "source": clobResult.source ?? "polymarket",
                             "tx_hash": clobResult.polygonTxHash ?? clobResult.txHash ?? "",
                             "price": clobResult.price ?? 0,
                             "shares": clobResult.shares ?? 0,
-                            "message": "Bet confirmed! $\(amount) on \(side) via Polymarket."
+                            "message": "Bet confirmed! $\(amount) on \(resolvedSide) via Polymarket."
                         ]
                     } else {
                         result = ["status": "error", "error": clobResult.error ?? "CLOB execution failed"]
@@ -970,5 +981,13 @@ extension GeminiSessionViewModel: GeminiLiveServiceDelegate {
     func geminiDidInterrupt() {
         // User interrupted — stop playback immediately
         audioManager.stopPlayback()
+    }
+}
+
+// MARK: - Safe Array Subscript
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
