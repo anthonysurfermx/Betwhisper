@@ -679,7 +679,10 @@ class GeminiSessionViewModel: ObservableObject {
                     var marketsResult: [[String: Any]] = []
                     var storedMarkets: [MarketItem] = []
                     for event in response.events.prefix(3) {
-                        if let market = event.markets?.first {
+                        // Prefer the winner market (question == event title) over O/U or spreads
+                        let market: MarketItem? = event.markets?.first(where: { $0.question == event.title })
+                            ?? event.markets?.first
+                        if let market = market {
                             let labels = market.outcomeLabels
                             marketsResult.append([
                                 "question": market.question,
