@@ -294,6 +294,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
+    version: 'v3-retry-loop',
     ready: !!process.env.POLYMARKET_PRIVATE_KEY,
     mock: process.env.MOCK_POLYGON_EXECUTION?.toLowerCase() === 'true',
     balance,

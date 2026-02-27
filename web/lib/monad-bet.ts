@@ -1,4 +1,4 @@
-// On-chain bet payment on Monad
+// On-chain bet payment on Monad — v3 (retry loop for tx confirmation)
 // User sends MON equivalent to their USD bet amount to BetWhisper deposit address
 // Bet metadata in calldata provides on-chain data provenance
 
@@ -86,6 +86,7 @@ export async function verifyMonadPayment(txHash: string, expectedAmountUSD: numb
   computedUSD?: number
 }> {
   try {
+    console.log(`[Payment v3] Verifying tx ${txHash.slice(0, 12)}... (retry loop active)`)
     // Retry loop: wait for Monad to confirm the transaction (up to ~10s)
     let receipt: Record<string, string> | null = null
     let tx: Record<string, string> | null = null
