@@ -6,7 +6,7 @@ import { ClobClient, Side, OrderType } from '@polymarket/clob-client'
 import { Wallet } from '@ethersproject/wallet'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { Contract } from '@ethersproject/contracts'
-import { GAMMA_API, POLYGON_RPC, USDC_POLYGON, SLIPPAGE_PCT, MAX_BET_USD } from './constants'
+import { GAMMA_API, POLYGON_RPC, POLYGON_RPC_FALLBACKS, USDC_POLYGON, SLIPPAGE_PCT, MAX_BET_USD } from './constants'
 
 // Singleton CLOB client (lazy init)
 let clientInstance: ClobClient | null = null
@@ -292,31 +292,34 @@ export async function executeClobSell(params: {
   }
 }
 
-// Check USDC balance on Polygon (with timeout for serverless)
+// Check USDC balance on Polygon (with fallback RPCs + timeout)
 export async function getUSDCBalance(): Promise<number> {
   const pk = process.env.POLYMARKET_PRIVATE_KEY
   if (!pk) { console.log('[CLOB] No POLYMARKET_PRIVATE_KEY'); return 0 }
 
-  try {
-    const provider = new JsonRpcProvider(POLYGON_RPC)
-    const wallet = new Wallet(pk, provider)
-    const usdc = new Contract(USDC_POLYGON, [
-      'function balanceOf(address) view returns (uint256)',
-    ], provider)
+  const rpcs = [POLYGON_RPC, ...POLYGON_RPC_FALLBACKS.filter(r => r !== POLYGON_RPC)]
+  for (const rpc of rpcs) {
+    try {
+      const provider = new JsonRpcProvider(rpc)
+      const wallet = new Wallet(pk, provider)
+      const usdc = new Contract(USDC_POLYGON, [
+        'function balanceOf(address) view returns (uint256)',
+      ], provider)
 
-    // Race against 8s timeout for serverless environments
-    const balance = await Promise.race([
-      usdc.balanceOf(wallet.address),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('RPC timeout')), 8000)),
-    ])
+      const balance = await Promise.race([
+        usdc.balanceOf(wallet.address),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('RPC timeout')), 6000)),
+      ])
 
-    const parsed = parseFloat(balance.toString()) / 1e6
-    console.log(`[CLOB] USDC balance: $${parsed}`)
-    return parsed
-  } catch (err) {
-    console.error('[CLOB] Balance check failed:', err instanceof Error ? err.message : err)
-    return -1  // Return -1 to distinguish from "no key" (0)
+      const parsed = parseFloat(balance.toString()) / 1e6
+      console.log(`[CLOB] USDC balance: $${parsed} (via ${rpc})`)
+      return parsed
+    } catch (err) {
+      console.warn(`[CLOB] Balance check failed via ${rpc}:`, err instanceof Error ? err.message : err)
+    }
   }
+  console.error('[CLOB] All RPCs failed for balance check')
+  return -1
 }
 
 export function getWalletAddress(): string {

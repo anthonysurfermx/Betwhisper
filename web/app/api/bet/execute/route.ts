@@ -114,19 +114,24 @@ export async function POST(request: NextRequest) {
   if (process.env.MOCK_POLYGON_EXECUTION?.toLowerCase() === 'true') {
     await new Promise(r => setTimeout(r, 500))
     const mockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
+    const mockPrice = outcomeIndex === 0 ? 0.55 : 0.45
+    const mockShares = amount / mockPrice
     return NextResponse.json({
       success: true,
       source: 'polymarket-mock',
       orderID: `mock_${Date.now()}`,
       txHash: mockHash,
       polygonTxHash: mockHash,
-      price: outcomeIndex === 0 ? 0.55 : 0.45,
-      shares: amount / (outcomeIndex === 0 ? 0.55 : 0.45),
+      price: mockPrice,
+      shares: mockShares,
       amountUSD: amount,
       explorerUrl: `${POLYGON_EXPLORER}/tx/${mockHash}`,
       monadTxHash: monadTxHash || null,
       marketSlug,
       side: outcomeIndex === 0 ? 'Yes' : 'No',
+      tokenId: tokenId || `mock_token_${conditionId}_${outcomeIndex}`,
+      tickSize: tickSize || '0.01',
+      negRisk: negRisk || false,
     })
   }
 
