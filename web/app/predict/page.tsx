@@ -2370,6 +2370,8 @@ export default function PredictChat() {
 
   // Auto-join from QR scan URL param (persists in sessionStorage through onboarding)
   const [autoJoinCode, setAutoJoinCode] = useState<string>('')
+  // Pulse geolocation: lat/lng passed from /pulse trade buttons
+  const [pulseGeo, setPulseGeo] = useState<{ lat: number; lng: number } | null>(null)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const join = params.get('join')
@@ -2377,7 +2379,6 @@ export default function PredictChat() {
       setAutoJoinCode(join)
       setInlineJoinCode(join.toUpperCase())
       sessionStorage.setItem('bw_join_code', join.toUpperCase())
-      window.history.replaceState({}, '', window.location.pathname)
     } else {
       // Recover from sessionStorage (survives onboarding + page transitions)
       const saved = sessionStorage.getItem('bw_join_code')
@@ -2386,6 +2387,14 @@ export default function PredictChat() {
         setInlineJoinCode(saved)
       }
     }
+    // Read lat/lng from Pulse trade buttons
+    const lat = params.get('lat')
+    const lng = params.get('lng')
+    if (lat && lng) {
+      setPulseGeo({ lat: parseFloat(lat), lng: parseFloat(lng) })
+    }
+    // Clean URL params
+    window.history.replaceState({}, '', window.location.pathname)
   }, [])
 
   // AI Gate state
@@ -2738,6 +2747,9 @@ export default function PredictChat() {
             marketSlug: slug,
             monadTxHash,
             monPriceUSD,
+            side,
+            walletAddress: address,
+            ...(pulseGeo ? { lat: pulseGeo.lat, lng: pulseGeo.lng } : {}),
           }),
         })
         const data = await res.json()

@@ -225,4 +225,25 @@
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Pulse scan line animation */
+  @keyframes scan {
+    0% { top: -2px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+  .animate-scan {
+    animation: scan 2s ease-in-out forwards;
+  }
+
+  /* Pulse glow entry */
+  @keyframes pulse-glow {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 0.8s ease-out forwards;
+  }
 }
