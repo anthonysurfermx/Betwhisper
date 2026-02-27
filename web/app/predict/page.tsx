@@ -13,7 +13,7 @@ import {
   Swords, Gamepad2, CircleDot, Bitcoin, Dribbble,
   Trophy, Zap,
   Users, Link2, Copy, Check, Plus, ArrowLeft, Crown, Lock, Unlock,
-  MessageSquare, Trash2, Clock, Radio, MapPin,
+  MessageSquare, Trash2, Clock, Radio, MapPin, Maximize2, X, Navigation,
 } from 'lucide-react'
 import {
   Drawer, DrawerContent, DrawerTrigger, DrawerTitle,
@@ -185,6 +185,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     explaining: "AI analyzing market data...",
     betNow: "TRADE",
     skipAnalysis: "SKIP, TRADE NOW",
+    localSentiment: "LOCAL SENTIMENT",
     connectForAnalysis: "Connect your wallet to unlock agent detection.",
     successProb: "Win Probability",
     recommendedSide: "Recommended",
@@ -280,6 +281,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     explaining: "IA analizando datos del mercado...",
     betNow: "INVERTIR",
     skipAnalysis: "SALTAR, INVERTIR YA",
+    localSentiment: "SENTIMIENTO LOCAL",
     connectForAnalysis: "Conecta tu wallet para detectar agentes.",
     successProb: "Probabilidad de Exito",
     recommendedSide: "Recomendado",
@@ -375,6 +377,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     explaining: "IA analisando dados do mercado...",
     betNow: "INVESTIR",
     skipAnalysis: "PULAR, INVESTIR JA",
+    localSentiment: "SENTIMENTO LOCAL",
     connectForAnalysis: "Conecte sua wallet para detectar agentes.",
     successProb: "Probabilidade de Sucesso",
     recommendedSide: "Recomendado",
@@ -792,11 +795,12 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
   mixed: 'text-yellow-400 border-yellow-400/30', human: 'text-emerald-400 border-emerald-400/30',
 }
 
-function DeepAnalysisAttachment({ analysis, market, lang, onExplain, onSkipToBet, onContext }: {
+function DeepAnalysisAttachment({ analysis, market, lang, onExplain, onSkipToBet, onContext, onPulse }: {
   analysis: DeepAnalysisResult; market: MarketInfo; lang: Lang
   onExplain: (analysis: DeepAnalysisResult, market: MarketInfo) => void
   onSkipToBet: (market: MarketInfo, analysis: DeepAnalysisResult) => void
   onContext?: (title: string, slug: string) => void
+  onPulse?: (market: MarketInfo, analysis: DeepAnalysisResult) => void
 }) {
   const { classifications, capitalByOutcome, topHolders, strategies } = analysis
   const totalYesCap = capitalByOutcome.Yes.total
@@ -981,6 +985,16 @@ function DeepAnalysisAttachment({ analysis, market, lang, onExplain, onSkipToBet
           {t(lang, 'skipAnalysis')}
         </button>
       </div>
+      {/* Local Sentiment button — full width below */}
+      {onPulse && (
+        <div className="px-4 pb-3">
+          <button onClick={() => onPulse(market, analysis)}
+            className="w-full py-2.5 text-[12px] font-semibold border border-[#836EF9]/30 text-[#836EF9] hover:bg-[#836EF9]/10 transition-colors active:scale-[0.97] flex items-center justify-center gap-1.5">
+            <Radio className="w-3.5 h-3.5" />
+            {t(lang, 'localSentiment')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1011,7 +1025,7 @@ function AIExplanationAttachment({ lines, market, analysis, lang, onNext }: {
   )
 }
 
-// ─── Chat Attachment: Pulse Market (Step 3.5 - Social Heatmap) ───
+// ─── Chat Attachment: Local Sentiment (Step 3.5 - Social Heatmap) ───
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
 
@@ -1036,9 +1050,68 @@ function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang,
   const [scanActive, setScanActive] = useState(false)
   const prevCount = useRef(0)
   const [copied, setCopied] = useState(false)
+  const [sonarPhase, setSonarPhase] = useState<'ping' | 'done'>('ping')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fullscreenMapContainer = useRef<HTMLDivElement>(null)
+  const fullscreenMapRef = useRef<mapboxgl.Map | null>(null)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating] = useState(false)
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const userMarkerFsRef = useRef<mapboxgl.Marker | null>(null)
 
-  // Hardcoded venue center (Foundry NYC area / Manhattan)
-  const mapCenter: [number, number] = [-73.9857, 40.7484]
+  // Sonar intro sequence: 3 rings staggered, then reveal map
+  useEffect(() => {
+    const timer = setTimeout(() => setSonarPhase('done'), 3800)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Locate me — request browser GPS
+  const handleLocateMe = useCallback(() => {
+    if (!navigator.geolocation) return
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setLocating(false)
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }, [])
+
+  // Place / update user marker on maps when location changes
+  useEffect(() => {
+    if (!userLocation) return
+    import('mapbox-gl').then((mapboxgl) => {
+      // Create a pulsing blue dot element
+      const createDot = () => {
+        const el = document.createElement('div')
+        el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#3B82F6;border:3px solid white;box-shadow:0 0 12px 4px rgba(59,130,246,0.5);'
+        return el
+      }
+
+      // Inline map marker
+      if (mapRef.current) {
+        if (userMarkerRef.current) userMarkerRef.current.remove()
+        userMarkerRef.current = new mapboxgl.default.Marker({ element: createDot() })
+          .setLngLat([userLocation.lng, userLocation.lat])
+          .addTo(mapRef.current)
+        mapRef.current.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 15, duration: 1200 })
+      }
+
+      // Fullscreen map marker
+      if (fullscreenMapRef.current) {
+        if (userMarkerFsRef.current) userMarkerFsRef.current.remove()
+        userMarkerFsRef.current = new mapboxgl.default.Marker({ element: createDot() })
+          .setLngLat([userLocation.lng, userLocation.lat])
+          .addTo(fullscreenMapRef.current)
+        fullscreenMapRef.current.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 15.5, pitch: 50, duration: 1500 })
+      }
+    })
+  }, [userLocation])
+
+  // Hackathon venue: 50 W 23rd St, NYC (Flatiron / Privacy Hackathon)
+  const mapCenter: [number, number] = [-73.9918, 40.7420]
 
   // Initialize Mapbox
   useEffect(() => {
@@ -1107,6 +1180,79 @@ function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang,
     })
   }, [points, mapLoaded])
 
+  // Initialize fullscreen map when expanded
+  useEffect(() => {
+    if (!isFullscreen || !fullscreenMapContainer.current || fullscreenMapRef.current) return
+    import('mapbox-gl').then((mapboxgl) => {
+      mapboxgl.default.accessToken = MAPBOX_TOKEN
+      const map = new mapboxgl.default.Map({
+        container: fullscreenMapContainer.current!,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: mapCenter,
+        zoom: 14,
+        pitch: 45,
+        bearing: -15,
+        interactive: true,
+        attributionControl: false,
+      })
+      map.on('load', () => {
+        map.addSource('pulse-heat-fs', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: points.map(p => ({
+              type: 'Feature' as const,
+              geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+              properties: { intensity: p.intensity, side: p.side },
+            })),
+          },
+        })
+        map.addLayer({
+          id: 'pulse-heatmap-fs',
+          type: 'heatmap',
+          source: 'pulse-heat-fs',
+          paint: {
+            'heatmap-weight': ['get', 'intensity'],
+            'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 13, 1.5, 16, 2.5],
+            'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 20, 13, 40, 16, 60],
+            'heatmap-color': [
+              'interpolate', ['linear'], ['heatmap-density'],
+              0, 'rgba(0,0,0,0)',
+              0.1, 'rgba(15,25,80,0.4)',
+              0.25, 'rgba(50,20,140,0.6)',
+              0.4, 'rgba(131,110,249,0.7)',
+              0.55, 'rgba(180,40,60,0.8)',
+              0.7, 'rgba(220,100,20,0.85)',
+              0.85, 'rgba(255,180,30,0.9)',
+              1.0, 'rgba(255,240,80,0.95)',
+            ],
+            'heatmap-opacity': 0.9,
+          },
+        })
+        fullscreenMapRef.current = map
+      })
+    })
+    return () => {
+      if (fullscreenMapRef.current) { fullscreenMapRef.current.remove(); fullscreenMapRef.current = null }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullscreen])
+
+  // Sync data to fullscreen map
+  useEffect(() => {
+    if (!fullscreenMapRef.current) return
+    const source = fullscreenMapRef.current.getSource('pulse-heat-fs') as mapboxgl.GeoJSONSource
+    if (!source) return
+    source.setData({
+      type: 'FeatureCollection',
+      features: points.map(p => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+        properties: { intensity: p.intensity, side: p.side },
+      })),
+    })
+  }, [points, isFullscreen])
+
   // Poll heatmap data every 1.5s
   useEffect(() => {
     const poll = async () => {
@@ -1168,7 +1314,7 @@ function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang,
       {/* Header */}
       <div className="px-4 py-2.5 border-b border-[#836EF9]/10 flex items-center gap-2">
         <Radio className="w-3.5 h-3.5 text-[#836EF9]" />
-        <span className="text-[9px] font-bold font-mono text-[#836EF9] tracking-[1.5px]">PULSE MARKET</span>
+        <span className="text-[9px] font-bold font-mono text-[#836EF9] tracking-[1.5px]">LOCAL SENTIMENT</span>
         <div className="ml-auto flex items-center gap-1.5">
           <Users className="w-3 h-3 text-white/30" />
           <span className="text-[11px] font-mono font-bold text-white">{memberCount}</span>
@@ -1219,6 +1365,43 @@ function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang,
                 <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
               </div>
             </div>
+            {/* Map controls — top right */}
+            <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5">
+              <button onClick={() => setIsFullscreen(true)}
+                className="p-1.5 backdrop-blur-md bg-black/40 border border-white/[0.06] hover:bg-white/10 transition-colors"
+                title="Fullscreen">
+                <Maximize2 className="w-3.5 h-3.5 text-white/60" />
+              </button>
+              <button onClick={handleLocateMe}
+                className={`p-1.5 backdrop-blur-md border transition-colors ${userLocation ? 'bg-blue-500/20 border-blue-500/30' : 'bg-black/40 border-white/[0.06] hover:bg-white/10'}`}
+                title="Locate me">
+                {locating
+                  ? <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+                  : <Navigation className={`w-3.5 h-3.5 ${userLocation ? 'text-blue-400' : 'text-white/60'}`} />}
+              </button>
+            </div>
+
+            {/* ── Sonar Ping Overlay ── */}
+            {sonarPhase === 'ping' && (
+              <div className="absolute inset-0 z-[30] bg-black/80 animate-sonar-overlay flex items-center justify-center">
+                {/* Center dot */}
+                <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-[#836EF9] rounded-full animate-sonar-dot"
+                  style={{ boxShadow: '0 0 20px 6px rgba(131,110,249,0.5)' }} />
+                {/* Ring 1 */}
+                <div className="animate-sonar-ring" style={{ animationDelay: '0s' }} />
+                {/* Ring 2 */}
+                <div className="animate-sonar-ring" style={{ animationDelay: '0.6s' }} />
+                {/* Ring 3 */}
+                <div className="animate-sonar-ring" style={{ animationDelay: '1.2s' }} />
+                {/* Scanning text */}
+                <div className="absolute bottom-5 left-0 right-0 text-center animate-sonar-text" style={{ animationDelay: '0.4s' }}>
+                  <span className="text-[9px] font-mono text-[#836EF9]/80 tracking-[3px]">
+                    {lang === 'es' ? 'DETECTANDO SENTIMIENTO LOCAL' : 'DETECTING LOCAL SENTIMENT'}
+                    <span className="inline-block animate-pulse">...</span>
+                  </span>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -1234,7 +1417,7 @@ function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang,
             <QRCodeSVG value={joinUrl} size={90} level="H" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[8px] font-mono text-white/25 tracking-[2px] mb-1">SCAN TO JOIN PULSE</div>
+            <div className="text-[8px] font-mono text-white/25 tracking-[2px] mb-1">SCAN TO JOIN</div>
             <div className="text-[15px] font-bold font-mono text-white mb-1">{market.question.length > 35 ? market.question.slice(0, 35) + '...' : market.question}</div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[11px] font-mono text-[#836EF9] font-bold">{groupCode}</span>
@@ -1260,6 +1443,87 @@ function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang,
           {lang === 'es' ? 'TRADEAR AHORA' : 'TRADE NOW'}
         </button>
       </div>
+
+      {/* ── Fullscreen Heatmap Overlay ── */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+          {/* Fullscreen Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-black/90 backdrop-blur-md z-10">
+            <div className="flex items-center gap-2">
+              <Radio className="w-4 h-4 text-[#836EF9]" />
+              <span className="text-[10px] font-bold font-mono text-[#836EF9] tracking-[1.5px]">LOCAL SENTIMENT</span>
+              <span className="text-[10px] font-mono text-white/30 ml-2">{market.question.length > 30 ? market.question.slice(0, 30) + '...' : market.question}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3 h-3 text-white/30" />
+                <span className="text-[12px] font-mono font-bold text-white">{memberCount}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-mono text-emerald-500/80">{points.length} trades</span>
+              </div>
+              <button onClick={() => setIsFullscreen(false)}
+                className="p-1.5 hover:bg-white/10 transition-colors">
+                <X className="w-5 h-5 text-white/60" />
+              </button>
+            </div>
+          </div>
+
+          {/* Fullscreen Map */}
+          <div className="flex-1 relative overflow-hidden">
+            <div ref={fullscreenMapContainer} className="absolute inset-0 w-full h-full" />
+            {/* Vignette */}
+            <div className="absolute inset-0 pointer-events-none z-[5]"
+              style={{ background: 'radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%)' }} />
+            {/* Floating indicators */}
+            {floaters.map(f => (
+              <div key={f.id} className="absolute pointer-events-none z-[20] animate-float-up"
+                style={{ left: `${f.x}%`, top: `${f.y}%` }}>
+                <span className={`text-[18px] font-bold font-mono drop-shadow-lg ${f.side === 'Yes' || f.side === 'yes' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  +${f.amount}
+                </span>
+              </div>
+            ))}
+            {/* Scan line */}
+            {scanActive && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden z-[15]">
+                <div className="absolute left-0 right-0 h-[2px] animate-scan"
+                  style={{ background: 'linear-gradient(to right, transparent, rgba(131,110,249,0.5), transparent)', boxShadow: '0 0 30px 6px rgba(131,110,249,0.3)' }} />
+              </div>
+            )}
+            {/* Privacy badge */}
+            <div className="absolute top-4 left-4 z-20">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 backdrop-blur-md bg-black/40 border border-white/[0.06]">
+                <Shield className="w-3 h-3 text-emerald-500" />
+                <span className="text-[9px] font-mono text-emerald-500/80 tracking-[1.5px] uppercase">Encrypted by Unlink</span>
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              </div>
+            </div>
+            {/* GPS locate button — fullscreen */}
+            <button onClick={handleLocateMe}
+              className={`absolute top-4 right-4 z-20 p-2.5 backdrop-blur-md border transition-colors ${userLocation ? 'bg-blue-500/20 border-blue-500/30' : 'bg-black/40 border-white/[0.06] hover:bg-white/10'}`}
+              title="Locate me">
+              {locating
+                ? <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                : <Navigation className={`w-5 h-5 ${userLocation ? 'text-blue-400' : 'text-white/60'}`} />}
+            </button>
+          </div>
+
+          {/* Fullscreen Bottom Bar */}
+          <div className="px-4 py-3 border-t border-white/[0.08] bg-black/90 backdrop-blur-md flex items-center gap-3 z-10">
+            <div className="flex-1 flex items-center gap-3">
+              <span className="text-[11px] font-mono text-white/50">Yes {(market.yesPrice * 100).toFixed(0)}%</span>
+              <span className="text-[11px] font-mono text-white/50">No {(market.noPrice * 100).toFixed(0)}%</span>
+            </div>
+            <button onClick={() => { setIsFullscreen(false); onTrade(market, analysis) }}
+              className="px-6 py-2.5 text-[13px] font-semibold bg-[#836EF9] text-white hover:bg-[#836EF9]/80 transition-colors active:scale-[0.97] flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              {lang === 'es' ? 'TRADEAR AHORA' : 'TRADE NOW'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2641,7 +2905,7 @@ export default function PredictChat() {
         setInlineJoinCode(saved)
       }
     }
-    // Read market slug from Pulse QR code
+    // Read market slug from Local Sentiment QR code
     const marketParam = params.get('market')
     if (marketParam) {
       sessionStorage.setItem('bw_pulse_market', marketParam)
@@ -2861,7 +3125,7 @@ export default function PredictChat() {
     setMessages(prev => prev.map(m => m.id === id ? { ...m, attachment } : m))
   }, [])
 
-  // Auto-load Pulse market after successful QR join
+  // Auto-load market after successful QR join (Local Sentiment flow)
   const pulseMarketLoaded = useRef(false)
   useEffect(() => {
     if (inlineJoinResult !== 'success' || pulseMarketLoaded.current) return
@@ -2878,7 +3142,7 @@ export default function PredictChat() {
           for (const event of events) {
             const m = (event.markets || []).find((mk: MarketInfo) => mk.slug === pulseMarket) || (event.markets || [])[0]
             if (m) {
-              addMessage('assistant', `Welcome to the Pulse! Trading: ${m.question}`, {
+              addMessage('assistant', `You're in! Trading: ${m.question}`, {
                 type: 'betChoice', slug: m.slug, yesPrice: m.yesPrice, noPrice: m.noPrice,
               })
               break
@@ -3482,7 +3746,7 @@ export default function PredictChat() {
     }
   }, [isProcessing, addMessage, removeMessage, lang, aiGateEligible])
 
-  // Step 3 -> Pulse Market: Show heatmap + QR before trading
+  // Step 3 -> Local Sentiment: Show heatmap + QR before trading
   const handlePulseMarket = useCallback(async (market: MarketInfo, analysis: DeepAnalysisResult) => {
     setIsProcessing(true)
     try {
@@ -3502,7 +3766,7 @@ export default function PredictChat() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: `Pulse: ${market.question.slice(0, 40)}`,
+            name: `Sentiment: ${market.question.slice(0, 40)}`,
             mode: 'leaderboard',
             creator_wallet: address,
             market_slug: market.slug,
@@ -3727,11 +3991,11 @@ export default function PredictChat() {
                   )}
                   {msg.attachment.type === 'deepAnalysis' && (
                     <DeepAnalysisAttachment analysis={msg.attachment.analysis} market={msg.attachment.market}
-                      lang={lang} onExplain={handleExplainWithAI} onSkipToBet={handleAskAmount} onContext={fetchContext} />
+                      lang={lang} onExplain={handleExplainWithAI} onSkipToBet={handleAskAmount} onContext={fetchContext} onPulse={handlePulseMarket} />
                   )}
                   {msg.attachment.type === 'aiExplanation' && (
                     <AIExplanationAttachment lines={msg.attachment.lines} market={msg.attachment.market}
-                      analysis={msg.attachment.analysis} lang={lang} onNext={handlePulseMarket} />
+                      analysis={msg.attachment.analysis} lang={lang} onNext={handleAskAmount} />
                   )}
                   {msg.attachment.type === 'pulseMarket' && (
                     <PulseMarketAttachment market={msg.attachment.market} analysis={msg.attachment.analysis}

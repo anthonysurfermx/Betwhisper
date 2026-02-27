@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#111111"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    <filter id="neon">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
+
+  <!-- Subtle grid -->
+  <g opacity="0.04" stroke="#f59e0b">
+    <line x1="0" y1="128" x2="512" y2="128"/>
+    <line x1="0" y1="256" x2="512" y2="256"/>
+    <line x1="0" y1="384" x2="512" y2="384"/>
+    <line x1="128" y1="0" x2="128" y2="512"/>
+    <line x1="256" y1="0" x2="256" y2="512"/>
+    <line x1="384" y1="0" x2="384" y2="512"/>
+  </g>
+
+  <!-- Outer ring - radar pulse -->
+  <circle cx="256" cy="230" r="140" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.15"/>
+  <circle cx="256" cy="230" r="105" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.1"/>
+  <circle cx="256" cy="230" r="70" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.08"/>
+
+  <!-- Speech bubble / whisper shape -->
+  <g filter="url(#softGlow)">
+    <path d="M 176 170
+             Q 176 130, 216 130
+             L 296 130
+             Q 336 130, 336 170
+             L 336 260
+             Q 336 300, 296 300
+             L 240 300
+             L 210 340
+             L 220 300
+             L 216 300
+             Q 176 300, 176 260 Z"
+          fill="none" stroke="#f59e0b" stroke-width="3" opacity="0.9"/>
+  </g>
+
+  <!-- AI brain / signal waves inside bubble -->
+  <g opacity="0.8">
+    <!-- Center dot -->
+    <circle cx="256" cy="215" r="8" fill="#f59e0b" filter="url(#neon)"/>
+
+    <!-- Signal arcs -->
+    <path d="M 230 215 Q 230 195, 256 195" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+    <path d="M 282 215 Q 282 195, 256 195" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+
+    <path d="M 218 215 Q 218 182, 256 182" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+    <path d="M 294 215 Q 294 182, 256 182" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+
+    <path d="M 206 215 Q 206 168, 256 168" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+    <path d="M 306 215 Q 306 168, 256 168" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+  </g>
+
+  <!-- Three dots (whisper/typing indicator) -->
+  <circle cx="232" cy="250" r="5" fill="#f59e0b" opacity="0.4"/>
+  <circle cx="256" cy="250" r="5" fill="#f59e0b" opacity="0.6"/>
+  <circle cx="280" cy="250" r="5" fill="#f59e0b" opacity="0.8"/>
+
+  <!-- Text: BetWhisper -->
+  <text x="256" y="410" text-anchor="middle" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="42" font-weight="700" fill="#f59e0b" letter-spacing="2" filter="url(#neon)">BetWhisper</text>
+
+  <!-- Subtitle -->
+  <text x="256" y="445" text-anchor="middle" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="14" fill="#f59e0b" opacity="0.5" letter-spacing="4">AI PREDICTION MARKETS</text>
+</svg>

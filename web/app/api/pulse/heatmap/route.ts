@@ -22,24 +22,27 @@ interface PulseStats {
   globalComparison: string
 }
 
-// ─── Manhattan Clusters (for mock fallback) ─────────────
+// ─── Clusters near hackathon venue: 50 W 23rd St, Flatiron ─────────────
 
 const MANHATTAN_CLUSTERS = [
-  { lat: 40.8116, lng: -73.9465, label: 'Harlem' },
-  { lat: 40.7870, lng: -73.9754, label: 'UWS' },
-  { lat: 40.7736, lng: -73.9566, label: 'UES' },
-  { lat: 40.7638, lng: -73.9918, label: "Hell's Kitchen" },
-  { lat: 40.7549, lng: -73.9840, label: 'Midtown' },
-  { lat: 40.7580, lng: -73.9855, label: 'Times Square' },
-  { lat: 40.7484, lng: -73.9785, label: 'Murray Hill' },
-  { lat: 40.7465, lng: -73.9979, label: 'Chelsea' },
-  { lat: 40.7382, lng: -73.9860, label: 'Gramercy' },
-  { lat: 40.7233, lng: -74.0030, label: 'SoHo' },
-  { lat: 40.7163, lng: -74.0086, label: 'Tribeca' },
-  { lat: 40.7075, lng: -74.0113, label: 'FiDi' },
-  { lat: 40.7282, lng: -73.9942, label: 'East Village' },
-  { lat: 40.7527, lng: -73.9772, label: 'Grand Central' },
-  { lat: 40.7614, lng: -73.9776, label: 'Rockefeller' },
+  // 🔥 MSG Hotspot — Madison Square Garden (dense, high intensity)
+  { lat: 40.7505, lng: -73.9934, label: 'MSG Center' },
+  { lat: 40.7508, lng: -73.9929, label: 'MSG NE' },
+  { lat: 40.7502, lng: -73.9939, label: 'MSG SW' },
+  { lat: 40.7506, lng: -73.9925, label: 'MSG E' },
+  { lat: 40.7504, lng: -73.9942, label: 'MSG W' },
+  { lat: 40.7510, lng: -73.9934, label: 'MSG N' },
+  { lat: 40.7500, lng: -73.9934, label: 'MSG S' },
+  { lat: 40.7507, lng: -73.9920, label: 'MSG Gate' },
+  // Hackathon venue: 50 W 23rd St
+  { lat: 40.7420, lng: -73.9918, label: 'Venue' },
+  { lat: 40.7423, lng: -73.9912, label: 'Venue NE' },
+  // Nearby neighborhoods (lighter activity)
+  { lat: 40.7410, lng: -73.9897, label: 'Flatiron' },
+  { lat: 40.7440, lng: -73.9937, label: 'Chelsea' },
+  { lat: 40.7359, lng: -73.9911, label: 'Union Square' },
+  { lat: 40.7450, lng: -73.9880, label: 'Koreatown' },
+  { lat: 40.7484, lng: -73.9857, label: 'Penn Station' },
 ]
 
 function seededRandom(seed: number): number {
@@ -59,13 +62,16 @@ function generateMockPoints(): HeatmapPoint[] {
   for (let i = 0; i < pointCount; i++) {
     const cluster = MANHATTAN_CLUSTERS[i % MANHATTAN_CLUSTERS.length]
     const seed = i * 137 + Math.floor(elapsed / 10)
-    const jitterLat = (seededRandom(seed) - 0.5) * 0.006
-    const jitterLng = (seededRandom(seed + 1) - 0.5) * 0.006
+    const isMSG = i % MANHATTAN_CLUSTERS.length < 8 // First 8 = MSG hotspot
+
+    // MSG: tight cluster (0.001) + high intensity | Others: wider spread + variable
+    const jitterLat = (seededRandom(seed) - 0.5) * (isMSG ? 0.0015 : 0.005)
+    const jitterLng = (seededRandom(seed + 1) - 0.5) * (isMSG ? 0.0015 : 0.005)
 
     points.push({
       lat: cluster.lat + jitterLat,
       lng: cluster.lng + jitterLng,
-      intensity: 0.3 + seededRandom(seed + 2) * 0.7,
+      intensity: isMSG ? 0.85 + seededRandom(seed + 2) * 0.15 : 0.3 + seededRandom(seed + 2) * 0.5,
       side: seededRandom(seed + 3) > 0.43 ? 'Lakers' : 'Suns',
       timestamp: Date.now() - Math.floor(seededRandom(seed + 4) * 90000),
     })
@@ -87,7 +93,7 @@ function generateMockStats(): PulseStats {
     activeTraders: baseTraders + jitter,
     totalVolume: baseVolume + Math.floor(seededRandom(Math.floor(elapsed / 3)) * 300),
     spikeIndicator: elapsed > 30 ? 1.0 + seededRandom(Math.floor(elapsed / 8)) * 2.5 : 0.8,
-    globalComparison: `Local crowd is 57% Lakers, global market is 48%. This venue is ${Math.round(57 / 48 * 100 - 100)}% more bullish.`,
+    globalComparison: `MSG is on fire — 57% Lakers. Global market sits at 48%. Crowd is ${Math.round(57 / 48 * 100 - 100)}% more bullish than the world.`,
   }
 }
 

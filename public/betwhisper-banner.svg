@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" width="1500" height="500">
+  <defs>
+    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#050505"/>
+      <stop offset="50%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#0d0d0d"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#d97706"/>
+      <stop offset="50%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#fbbf24"/>
+    </linearGradient>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="bigGlow">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="textGlow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1500" height="500" fill="url(#bannerBg)"/>
+
+  <!-- Perspective grid floor -->
+  <g opacity="0.06" stroke="#f59e0b">
+    <!-- Horizontal lines -->
+    <line x1="0" y1="350" x2="1500" y2="350" stroke-width="0.5"/>
+    <line x1="0" y1="380" x2="1500" y2="380" stroke-width="0.5"/>
+    <line x1="0" y1="410" x2="1500" y2="410" stroke-width="0.5"/>
+    <line x1="0" y1="440" x2="1500" y2="440" stroke-width="0.5"/>
+    <line x1="0" y1="470" x2="1500" y2="470" stroke-width="0.5"/>
+    <!-- Vertical lines radiating -->
+    <line x1="750" y1="300" x2="0" y2="500" stroke-width="0.5"/>
+    <line x1="750" y1="300" x2="250" y2="500" stroke-width="0.5"/>
+    <line x1="750" y1="300" x2="500" y2="500" stroke-width="0.5"/>
+    <line x1="750" y1="300" x2="750" y2="500" stroke-width="0.5"/>
+    <line x1="750" y1="300" x2="1000" y2="500" stroke-width="0.5"/>
+    <line x1="750" y1="300" x2="1250" y2="500" stroke-width="0.5"/>
+    <line x1="750" y1="300" x2="1500" y2="500" stroke-width="0.5"/>
+  </g>
+
+  <!-- Radar circles (left area) -->
+  <g opacity="0.08">
+    <circle cx="200" cy="250" r="180" fill="none" stroke="#f59e0b" stroke-width="1"/>
+    <circle cx="200" cy="250" r="130" fill="none" stroke="#f59e0b" stroke-width="0.8"/>
+    <circle cx="200" cy="250" r="80" fill="none" stroke="#f59e0b" stroke-width="0.6"/>
+    <circle cx="200" cy="250" r="30" fill="none" stroke="#f59e0b" stroke-width="0.5"/>
+    <!-- Radar sweep -->
+    <path d="M 200 250 L 200 70" stroke="#f59e0b" stroke-width="0.5" opacity="0.3"/>
+    <path d="M 200 250 L 330 150" stroke="#f59e0b" stroke-width="0.5" opacity="0.3"/>
+    <!-- Blips -->
+    <circle cx="240" cy="180" r="3" fill="#f59e0b" opacity="0.6"/>
+    <circle cx="160" cy="300" r="2" fill="#f59e0b" opacity="0.4"/>
+    <circle cx="290" cy="270" r="2.5" fill="#f59e0b" opacity="0.5"/>
+    <circle cx="140" cy="190" r="2" fill="#f59e0b" opacity="0.3"/>
+  </g>
+
+  <!-- Candlestick chart (right area, subtle) -->
+  <g opacity="0.1" transform="translate(1100, 100)">
+    <!-- Green candles -->
+    <rect x="20" y="120" width="12" height="60" fill="#22c55e"/>
+    <line x1="26" y1="100" x2="26" y2="200" stroke="#22c55e" stroke-width="1.5"/>
+    <rect x="80" y="80" width="12" height="80" fill="#22c55e"/>
+    <line x1="86" y1="60" x2="86" y2="180" stroke="#22c55e" stroke-width="1.5"/>
+    <rect x="140" y="100" width="12" height="50" fill="#22c55e"/>
+    <line x1="146" y1="80" x2="146" y2="170" stroke="#22c55e" stroke-width="1.5"/>
+    <!-- Red candles -->
+    <rect x="50" y="90" width="12" height="70" fill="#ef4444"/>
+    <line x1="56" y1="70" x2="56" y2="180" stroke="#ef4444" stroke-width="1.5"/>
+    <rect x="110" y="110" width="12" height="55" fill="#ef4444"/>
+    <line x1="116" y1="90" x2="116" y2="185" stroke="#ef4444" stroke-width="1.5"/>
+    <!-- Price line -->
+    <path d="M 0 150 Q 40 130, 56 160 Q 80 100, 86 120 Q 100 140, 116 130 Q 130 110, 146 125 Q 160 140, 180 100" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.4"/>
+  </g>
+
+  <!-- Signal waves (scattered) -->
+  <g opacity="0.05" stroke="#f59e0b" fill="none" stroke-width="1">
+    <path d="M 450 100 Q 460 80, 470 100 Q 480 120, 490 100"/>
+    <path d="M 1050 380 Q 1060 360, 1070 380 Q 1080 400, 1090 380"/>
+    <path d="M 600 400 Q 610 385, 620 400 Q 630 415, 640 400"/>
+  </g>
+
+  <!-- Main content - centered -->
+  <!-- Logo mark: speech bubble with signal -->
+  <g transform="translate(480, 120)">
+    <g filter="url(#glow2)">
+      <path d="M 0 30 Q 0 0, 30 0 L 90 0 Q 120 0, 120 30 L 120 80 Q 120 110, 90 110 L 50 110 L 30 135 L 35 110 L 30 110 Q 0 110, 0 80 Z"
+            fill="none" stroke="#f59e0b" stroke-width="2.5" opacity="0.9"/>
+    </g>
+    <!-- Signal inside -->
+    <circle cx="60" cy="50" r="5" fill="#f59e0b" opacity="0.9"/>
+    <path d="M 42 50 Q 42 35, 60 35" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 78 50 Q 78 35, 60 35" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 33 50 Q 33 25, 60 25" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+    <path d="M 87 50 Q 87 25, 60 25" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+    <!-- Dots -->
+    <circle cx="45" cy="80" r="3.5" fill="#f59e0b" opacity="0.3"/>
+    <circle cx="60" cy="80" r="3.5" fill="#f59e0b" opacity="0.5"/>
+    <circle cx="75" cy="80" r="3.5" fill="#f59e0b" opacity="0.7"/>
+  </g>
+
+  <!-- BetWhisper text -->
+  <text x="630" y="200" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="68" font-weight="800" fill="url(#goldGrad)" letter-spacing="3" filter="url(#textGlow)">BetWhisper</text>
+
+  <!-- Tagline -->
+  <text x="635" y="250" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="18" fill="#f59e0b" opacity="0.6" letter-spacing="6">YOUR AI FOR PREDICTION MARKETS</text>
+
+  <!-- Feature pills -->
+  <g transform="translate(490, 280)">
+    <!-- Pill 1 -->
+    <rect x="0" y="0" width="200" height="36" rx="18" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.3"/>
+    <circle cx="22" cy="18" r="4" fill="#22c55e" opacity="0.8"/>
+    <text x="36" y="23" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="12" fill="#f59e0b" opacity="0.6">Smart Money Tracking</text>
+
+    <!-- Pill 2 -->
+    <rect x="220" y="0" width="170" height="36" rx="18" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.3"/>
+    <circle cx="242" cy="18" r="4" fill="#f59e0b" opacity="0.8"/>
+    <text x="256" y="23" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="12" fill="#f59e0b" opacity="0.6">Bot Detection</text>
+
+    <!-- Pill 3 -->
+    <rect x="410" y="0" width="160" height="36" rx="18" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.3"/>
+    <circle cx="432" cy="18" r="4" fill="#60a5fa" opacity="0.8"/>
+    <text x="446" y="23" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="12" fill="#f59e0b" opacity="0.6">AI Analysis</text>
+  </g>
+
+  <!-- Terminal prompt at bottom -->
+  <text x="490" y="380" font-family="'SF Mono', 'Fira Code', 'Courier New', monospace" font-size="13" fill="#f59e0b" opacity="0.2">$ betwhisper ask "What's smart money buying right now?"</text>
+
+  <!-- Bottom line accent -->
+  <rect x="0" y="494" width="1500" height="6" fill="url(#goldGrad)" opacity="0.3"/>
+
+  <!-- Corner accents -->
+  <path d="M 30 30 L 30 10 L 50 10" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.15"/>
+  <path d="M 1470 30 L 1470 10 L 1450 10" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.15"/>
+  <path d="M 30 470 L 30 490 L 50 490" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.15"/>
+  <path d="M 1470 470 L 1470 490 L 1450 490" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.15"/>
+</svg>
