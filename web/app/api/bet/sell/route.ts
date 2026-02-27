@@ -84,15 +84,25 @@ export async function POST(request: NextRequest) {
     let monCashout: { monAmount: number; txHash: string; explorerUrl: string; status: string } | null = null
 
     if (result.amountUSD > 0) {
-      // Fetch MON price
-      let monPriceUSD = 0.021
+      // Fetch MON price from shared oracle (throws if all sources fail → no cashout at wrong price)
+      let monPriceUSD: number
       try {
-        const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=monad&vs_currencies=usd')
-        if (priceRes.ok) {
-          const priceData = await priceRes.json()
-          if (priceData?.monad?.usd > 0) monPriceUSD = priceData.monad.usd
-        }
-      } catch { /* fallback */ }
+        const { getMonPriceOrThrow } = await import('@/lib/mon-price')
+        monPriceUSD = await getMonPriceOrThrow()
+      } catch {
+        // Price unavailable — skip cashout to avoid sending wrong amount
+        return NextResponse.json({
+          success: true,
+          sharesSold: result.shares,
+          usdReceived: result.amountUSD,
+          price: result.price,
+          polygonTxHash: result.transactionHashes[0] || '',
+          explorerUrl: result.explorerUrl,
+          remainingShares: Math.max(remainingShares, 0),
+          marketSlug,
+          monCashout: { monAmount: 0, txHash: '', explorerUrl: '', status: 'price_unavailable' },
+        })
+      }
 
       const monToSend = (result.amountUSD / monPriceUSD) - GAS_BUFFER_MON
 

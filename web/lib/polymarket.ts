@@ -233,14 +233,34 @@ function parseEvent(event: Record<string, unknown>): EventInfo {
   }
 }
 
+// In-memory cache for Gamma API results (survives within serverless instance)
+const gammaCache = new Map<string, { data: EventInfo[]; ts: number }>()
+const GAMMA_CACHE_TTL = 30_000 // 30s — fresh enough for live odds, fast for demo
+const GAMMA_FETCH_TIMEOUT = 5_000 // 5s max per Gamma request
+
 async function fetchEvents(params: URLSearchParams): Promise<EventInfo[]> {
-  const res = await fetch(`${GAMMA_API}/events?${params}`, {
-    next: { revalidate: 60 },
-  })
-  if (!res.ok) return []
-  const data = await res.json()
-  if (!Array.isArray(data)) return []
-  return data.map(parseEvent)
+  const cacheKey = params.toString()
+  const cached = gammaCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < GAMMA_CACHE_TTL) return cached.data
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), GAMMA_FETCH_TIMEOUT)
+  try {
+    const res = await fetch(`${GAMMA_API}/events?${params}`, {
+      signal: controller.signal,
+      next: { revalidate: 60 },
+    })
+    if (!res.ok) return cached?.data || []
+    const data = await res.json()
+    if (!Array.isArray(data)) return cached?.data || []
+    const events = data.map(parseEvent)
+    gammaCache.set(cacheKey, { data: events, ts: Date.now() })
+    return events
+  } catch {
+    return cached?.data || [] // stale cache on timeout
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 // Query expansion: short/ambiguous queries -> better search terms
@@ -302,10 +322,6 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   console.log(`[Search] Path: team=${teamMatch?.league || 'none'}, vs=${vsMatch ? `${vsMatch[1]} vs ${vsMatch[2]}` : 'none'}`)
 
   if (teamMatch) {
-    const titleTerms = vsMatch
-      ? [vsMatch[1].trim(), vsMatch[2].trim()]
-      : teamMatch.searchTerms
-
     // Gamma API caps at 20 results per request
     // Fetch TWO pages in parallel: by volume (catches high-profile events) +
     // by endDate ASC (catches today's/tonight's games that end soonest)
@@ -344,18 +360,25 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
     const now = new Date()
     const liveEvents = allEvents.filter(e => !e.endDate || new Date(e.endDate) > now)
 
-    // Score by relevance: team name in title > no match
-    // allSearchTerms for "celtics" = ['celtics', 'boston']
-    // "Celtics vs. Suns" matches "celtics" → 60 + date boost 10 = 70
-    // "Thunder win Finals" does NOT match "celtics" or "boston" → 0 (filtered out)
+    // Score by relevance: check both event title AND sub-market questions
+    // This ensures multi-outcome events (NBA Champion) surface when searching a team name
     const scored = liveEvents.map(e => {
       const titleLower = e.title.toLowerCase()
       let score = 0
       const matchCount = allSearchTerms.filter(t => titleLower.includes(t)).length
       if (matchCount >= 2) score = 100  // Both teams in title (e.g. "Celtics vs. Suns")
       else if (matchCount === 1) score = 60  // One team in title
-      // Boost daily games (slug ends with YYYY-MM-DD)
-      if (e.slug.match(/\d{4}-\d{2}-\d{2}$/)) score += 10
+
+      // Also check sub-market questions (catches "Will the Lakers win the 2026 NBA Finals?")
+      if (score === 0 && e.markets.length > 0) {
+        const marketMatch = e.markets.some(m =>
+          allSearchTerms.some(t => m.question.toLowerCase().includes(t))
+        )
+        if (marketMatch) score = 50  // Team found in sub-market question
+      }
+
+      // Boost daily games only slightly (don't overshadow high-volume futures)
+      if (e.slug.match(/\d{4}-\d{2}-\d{2}$/)) score += 5
       return { event: e, score }
     })
 
@@ -367,7 +390,21 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
     const filtered = scored
       .filter(s => s.score > 0)
       .sort((a, b) => b.score - a.score || b.event.volume - a.event.volume)
-      .map(s => s.event)
+      .map(s => {
+        const e = s.event
+        // For multi-outcome events (e.g. "2026 NBA Champion" with 30 sub-markets),
+        // filter to only the sub-market(s) matching the team query.
+        // This way the client gets "Will the Lakers win?" instead of a random first sub-market.
+        if (e.markets.length > 2) {
+          const matching = e.markets.filter(m =>
+            allSearchTerms.some(t => m.question.toLowerCase().includes(t))
+          )
+          if (matching.length > 0) {
+            return { ...e, markets: matching }
+          }
+        }
+        return e
+      })
 
     if (filtered.length > 0) return filtered.slice(0, limit)
     return allEvents.slice(0, limit)

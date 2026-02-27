@@ -30,6 +30,14 @@ export const MON_PRICE_API = 'https://api.coingecko.com/api/v3/simple/price?ids=
 export const MAX_BET_USD = 100       // Safety cap per order
 export const SLIPPAGE_PCT = 0.05     // 5% slippage tolerance for FOK orders
 
+// Payment verification & safety
+export const PAYMENT_TOLERANCE = 0.05        // Max 5% underpayment allowed
+export const RPC_TIMEOUT_MS = 6_000          // Timeout for Monad RPC calls
+export const PRICE_FETCH_TIMEOUT_MS = 4_000  // Timeout for price oracle calls
+export const DAILY_SPEND_LIMIT_USD = 500     // Server-side daily spending cap
+export const RATE_LIMIT_PER_MINUTE = 5       // Max trades per wallet per minute
+export const REFUND_GAS_BUFFER_MON = 0.1     // Gas buffer deducted from refunds
+
 // Consensus thresholds
 export const MIN_SMART_WALLETS_FOR_SIGNAL = 2
 export const CONVICTION_CAP = 3.0

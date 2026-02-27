@@ -24,6 +24,9 @@ async function ensureTable() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `
+  // Indexes for common queries
+  await sql`CREATE INDEX IF NOT EXISTS idx_positions_wallet ON positions(wallet_address)`
+  await sql`CREATE INDEX IF NOT EXISTS idx_positions_wallet_token ON positions(wallet_address, token_id)`
   tableCreated = true
 }
 

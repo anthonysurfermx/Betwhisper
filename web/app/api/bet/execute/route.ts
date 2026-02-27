@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeClobBet, getUSDCBalance } from '@/lib/polymarket-clob'
 import { verifyMonadPayment } from '@/lib/monad-bet'
-import { MAX_BET_USD, POLYGON_EXPLORER } from '@/lib/constants'
+import { MAX_BET_USD, POLYGON_EXPLORER, DAILY_SPEND_LIMIT_USD, PAYMENT_TOLERANCE, RATE_LIMIT_PER_MINUTE } from '@/lib/constants'
 import { sql } from '@/lib/db'
 
-// Auto-create orders table (replay protection + order tracking)
+// Auto-create orders table (replay protection + order tracking + refund tracking)
 let ordersTableCreated = false
 async function ensureOrdersTable() {
   if (ordersTableCreated) return
@@ -26,25 +26,46 @@ async function ensureOrdersTable() {
       shares NUMERIC DEFAULT 0,
       fill_price NUMERIC DEFAULT 0,
       error_msg TEXT DEFAULT '',
+      refund_status TEXT DEFAULT NULL,
+      refund_tx_hash TEXT DEFAULT NULL,
+      refund_mon_amount NUMERIC DEFAULT NULL,
+      refund_attempted_at TIMESTAMP DEFAULT NULL,
+      refund_error TEXT DEFAULT NULL,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `
+  // Add refund columns + indexes in parallel (all idempotent)
+  await Promise.all([
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_status TEXT DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_tx_hash TEXT DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_mon_amount NUMERIC DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_attempted_at TIMESTAMP DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_error TEXT DEFAULT NULL`,
+    sql`CREATE INDEX IF NOT EXISTS idx_orders_wallet_status ON orders(wallet_address, status)`,
+    sql`CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at)`,
+  ])
   ordersTableCreated = true
 }
 
-// Daily spend tracking (resets on deploy/restart)
-let dailySpent = 0
-let dailyResetDate = new Date().toDateString()
-const DAILY_LIMIT = 500
+// DB-backed daily limit (survives deploys and cold starts)
+async function getDailySpent(): Promise<number> {
+  const result = await sql`
+    SELECT COALESCE(SUM(amount_usd), 0) as total
+    FROM orders
+    WHERE status = 'success' AND created_at >= CURRENT_DATE
+  `
+  return parseFloat(result[0]?.total || '0')
+}
 
-function checkDailyLimit(amount: number): boolean {
-  const today = new Date().toDateString()
-  if (today !== dailyResetDate) {
-    dailySpent = 0
-    dailyResetDate = today
+async function checkDailyLimit(amount: number): Promise<{ allowed: boolean; spent: number; remaining: number }> {
+  const spent = await getDailySpent()
+  const remaining = DAILY_SPEND_LIMIT_USD - spent
+  return {
+    allowed: (spent + amount) <= DAILY_SPEND_LIMIT_USD,
+    spent,
+    remaining,
   }
-  return (dailySpent + amount) <= DAILY_LIMIT
 }
 
 export async function POST(request: NextRequest) {
@@ -65,16 +86,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Amount exceeds max bet of $${MAX_BET_USD}` }, { status: 400 })
   }
 
-  // Check daily limit
-  if (!checkDailyLimit(amount)) {
-    return NextResponse.json({ error: `Daily limit of $${DAILY_LIMIT} reached` }, { status: 400 })
+  // Run table setup + daily limit check in parallel
+  const [, dailyCheck] = await Promise.all([
+    ensureOrdersTable(),
+    checkDailyLimit(amount),
+  ])
+  if (!dailyCheck.allowed) {
+    return NextResponse.json({
+      error: `Daily limit of $${DAILY_SPEND_LIMIT_USD} reached ($${dailyCheck.spent.toFixed(2)} spent today)`,
+    }, { status: 429 })
+  }
+
+  // ── Pulse: save geo-located trade for heatmap ──
+  const { lat, lng, side: clientSidePulse } = body
+  if (lat && lng) {
+    const pulseSide = clientSidePulse || (outcomeIndex === 0 ? 'Yes' : 'No')
+    const bucket = amount < 10 ? '1-10' : amount < 50 ? '10-50' : amount < 100 ? '50-100' : '100+'
+    const tsBucket = Math.floor(Date.now() / 60000) * 60000 // 60s window for privacy
+    const walletHash = (body.walletAddress || '').slice(0, 10) || 'anon'
+    sql`
+      INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash)
+      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${lat}, ${lng}, ${tsBucket}, ${walletHash})
+    `.catch((e: unknown) => console.error('[Pulse] Failed to save trade:', e instanceof Error ? e.message : e))
   }
 
   // Mock mode (panic button for demo)
   if (process.env.MOCK_POLYGON_EXECUTION?.toLowerCase() === 'true') {
-    await new Promise(r => setTimeout(r, 1500))
+    await new Promise(r => setTimeout(r, 500))
     const mockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-    dailySpent += amount
     return NextResponse.json({
       success: true,
       source: 'polymarket-mock',
@@ -95,8 +134,6 @@ export async function POST(request: NextRequest) {
   if (!monadTxHash) {
     return NextResponse.json({ error: 'Missing monadTxHash: payment required before execution' }, { status: 400 })
   }
-
-  await ensureOrdersTable()
 
   // REPLAY PROTECTION: Check if this monadTxHash was already used
   const existing = await sql`
@@ -130,8 +167,7 @@ export async function POST(request: NextRequest) {
 
   // PRICE VERIFICATION: Compute USD from on-chain MON value (don't trust client)
   const verifiedAmountUSD = verification.computedUSD || amount
-  const tolerance = 0.15 // 15% tolerance for price drift
-  if (verifiedAmountUSD < amount * (1 - tolerance)) {
+  if (verifiedAmountUSD < amount * (1 - PAYMENT_TOLERANCE)) {
     return NextResponse.json({
       error: `Payment too low: on-chain value ~$${verifiedAmountUSD.toFixed(2)}, bet requires $${amount.toFixed(2)}`,
     }, { status: 400 })
@@ -139,8 +175,22 @@ export async function POST(request: NextRequest) {
 
   console.log(`[Payment Gate] Verified: ${verification.value} MON from ${verification.from} (~$${verifiedAmountUSD.toFixed(2)})`)
 
+  // Per-wallet rate limit: max N trades per 60 seconds
+  const walletForRateLimit = (verification.from || '').toLowerCase()
+  if (walletForRateLimit) {
+    const recentOrders = await sql`
+      SELECT COUNT(*) as cnt FROM orders
+      WHERE wallet_address = ${walletForRateLimit}
+        AND created_at >= NOW() - INTERVAL '60 seconds'
+    `
+    if (parseInt(recentOrders[0]?.cnt || '0') >= RATE_LIMIT_PER_MINUTE) {
+      return NextResponse.json({
+        error: `Rate limited: maximum ${RATE_LIMIT_PER_MINUTE} trades per minute.`,
+      }, { status: 429 })
+    }
+  }
+
   // Insert order as PENDING before CLOB execution (locks the monadTxHash)
-  // Resolve side label: use client-provided side if available, fallback to Yes/No
   const { side: clientSide } = body
   const side = clientSide || (outcomeIndex === 0 ? 'Yes' : 'No')
   await sql`
@@ -149,9 +199,18 @@ export async function POST(request: NextRequest) {
             ${amount}, ${verifiedAmountUSD}, ${verification.value || '0'}, ${monPriceUSD || 0}, 'pending')
   `
 
-  // Check USDC balance (skip if RPC fails, let CLOB reject if insufficient)
+  // Check USDC balance — FAIL-CLOSED: refuse trade if balance check fails
   const balance = await getUSDCBalance()
-  if (balance >= 0 && balance < amount) {
+  if (balance < 0) {
+    // RPC failed — cannot verify balance, refuse to proceed
+    await sql`UPDATE orders SET status = 'clob_failed', error_msg = 'USDC balance check failed (RPC error)', updated_at = NOW() WHERE monad_tx_hash = ${monadTxHash}`
+    return NextResponse.json({
+      error: 'Unable to verify USDC balance. Please try again in a moment.',
+      orphanedPayment: true,
+      retryable: true,
+    }, { status: 503 })
+  }
+  if (balance < amount) {
     await sql`UPDATE orders SET status = 'clob_failed', error_msg = 'Insufficient USDC balance', updated_at = NOW() WHERE monad_tx_hash = ${monadTxHash}`
     return NextResponse.json({
       error: `Insufficient USDC balance: $${balance.toFixed(2)} available, $${amount} needed`,
@@ -171,8 +230,6 @@ export async function POST(request: NextRequest) {
       negRisk: negRisk !== undefined ? negRisk : undefined,
       marketSlug: marketSlug || undefined,
     })
-
-    dailySpent += amount
 
     // Update order to SUCCESS
     await sql`
@@ -222,18 +279,14 @@ export async function GET(request: NextRequest) {
   const wallet = request.nextUrl.searchParams.get('wallet')
 
   const balance = await getUSDCBalance()
-  const today = new Date().toDateString()
-  if (today !== dailyResetDate) {
-    dailySpent = 0
-    dailyResetDate = today
-  }
+  const dailySpent = await getDailySpent()
 
   // If wallet provided, also return any failed/orphaned orders for that wallet
   let orphanedOrders: unknown[] = []
   if (wallet) {
     await ensureOrdersTable()
     orphanedOrders = await sql`
-      SELECT id, monad_tx_hash, market_slug, side, amount_usd, mon_paid, status, error_msg, created_at
+      SELECT id, monad_tx_hash, market_slug, side, amount_usd, mon_paid, status, error_msg, refund_status, refund_tx_hash, created_at
       FROM orders
       WHERE wallet_address = ${wallet.toLowerCase()} AND status = 'clob_failed'
       ORDER BY created_at DESC
@@ -246,8 +299,8 @@ export async function GET(request: NextRequest) {
     mock: process.env.MOCK_POLYGON_EXECUTION?.toLowerCase() === 'true',
     balance,
     dailySpent,
-    dailyLimit: DAILY_LIMIT,
-    dailyRemaining: DAILY_LIMIT - dailySpent,
+    dailyLimit: DAILY_SPEND_LIMIT_USD,
+    dailyRemaining: DAILY_SPEND_LIMIT_USD - dailySpent,
     maxBetUSD: MAX_BET_USD,
     orphanedOrders,
   })

@@ -249,7 +249,10 @@ class GeminiSessionViewModel: ObservableObject {
         geminiService.toolDeclarations = VoiceSwapTools.allDeclarations()
 
         Task {
+            // Pre-warm MON price cache while connecting
+            async let priceWarmup: Void = { let _ = await Self.getCachedMonPrice() }()
             let connected = await geminiService.connect()
+            let _ = await priceWarmup
             if connected {
                 NSLog("[GeminiSession] Pre-connect succeeded — awaiting user tap for audio")
             } else {
@@ -674,6 +677,8 @@ class GeminiSessionViewModel: ObservableObject {
 
             case "search_markets":
                 let query = toolCall.args["query"] as? String ?? ""
+                // Pre-warm MON price cache in background (so place_bet is instant)
+                Task { let _ = await Self.getCachedMonPrice() }
                 do {
                     let response = try await VoiceSwapAPIClient.shared.searchMarkets(query: query)
                     var marketsResult: [[String: Any]] = []
@@ -763,10 +768,15 @@ class GeminiSessionViewModel: ObservableObject {
                 let marketSlug = toolCall.args["market_slug"] as? String ?? ""
                 let side = toolCall.args["side"] as? String ?? "Yes"
                 let amount = toolCall.args["amount"] as? String ?? "1"
-                let conditionId = toolCall.args["condition_id"] as? String ?? self.lastAnalyzedConditionId ?? ""
+                // Try explicit arg → last analyzed → last searched market by slug → first searched market
+                var conditionId = toolCall.args["condition_id"] as? String ?? self.lastAnalyzedConditionId ?? ""
+                if conditionId.isEmpty, let searched = self.lastSearchedMarkets {
+                    conditionId = searched.first(where: { $0.slug == marketSlug })?.conditionId
+                        ?? searched.first?.conditionId ?? ""
+                }
 
                 if conditionId.isEmpty {
-                    result = ["status": "error", "error": "No market selected. Run search_markets and detect_agents first."]
+                    result = ["status": "error", "error": "No market selected. Search for a market first."]
                     break
                 }
 
@@ -779,17 +789,13 @@ class GeminiSessionViewModel: ObservableObject {
                 NSLog("[place_bet] side='%@' resolved to outcomeIndex=%d ('%@') for market=%@",
                       side, outcomeIndex, resolvedSide, marketSlug)
 
-                // Step 1: Fetch MON price and send intent to deposit address
+                // Step 1: Fetch MON price (with local cache) + send MON intent
                 let depositAddress = "0x530aBd0674982BAf1D16fd7A52E2ea510E74C8c3"
                 let amountUSD = Double(amount) ?? 1.0
-                var monPriceUSD: Double = 0.021
-
-                // Fetch MON price
-                if let priceURL = URL(string: "https://betwhisper.ai/api/mon-price"),
-                   let (priceData, _) = try? await URLSession.shared.data(from: priceURL),
-                   let json = try? JSONSerialization.jsonObject(with: priceData) as? [String: Any],
-                   let price = json["price"] as? Double, price > 0 {
-                    monPriceUSD = price
+                let monPriceUSD = await Self.getCachedMonPrice()
+                if monPriceUSD <= 0 {
+                    result = ["status": "error", "error": "MON price unavailable. Try again in a moment."]
+                    break
                 }
 
                 let monAmount = (amountUSD / monPriceUSD) * 1.01
@@ -984,6 +990,31 @@ extension GeminiSessionViewModel: GeminiLiveServiceDelegate {
     func geminiDidInterrupt() {
         // User interrupted — stop playback immediately
         audioManager.stopPlayback()
+    }
+
+    // MARK: - MON Price Cache (reduces latency on place_bet)
+
+    private static var cachedMonPrice: Double = 0
+    private static var monPriceCacheTime: Date = .distantPast
+
+    /// Returns cached MON price (30s TTL) or fetches fresh. 3s timeout.
+    static func getCachedMonPrice() async -> Double {
+        if cachedMonPrice > 0 && Date().timeIntervalSince(monPriceCacheTime) < 30 {
+            return cachedMonPrice
+        }
+        guard let url = URL(string: "https://betwhisper.ai/api/mon-price") else { return cachedMonPrice }
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 3 // 3s max — keep demo snappy
+            let (data, _) = try await URLSession.shared.data(for: request)
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let price = json["price"] as? Double, price > 0 {
+                cachedMonPrice = price
+                monPriceCacheTime = Date()
+                return price
+            }
+        } catch { /* timeout or network error */ }
+        return cachedMonPrice // stale > nothing
     }
 }
 

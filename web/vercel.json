@@ -3,6 +3,15 @@
   "functions": {
     "app/api/bet/execute/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/cron/refund/route.ts": {
+      "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/refund",
+      "schedule": "* * * * *"
+    }
+  ]
 }

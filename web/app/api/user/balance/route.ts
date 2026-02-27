@@ -80,15 +80,13 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // Fetch MON price
-  let monPrice = 0.021
+  // Fetch MON price from shared oracle (degrade gracefully with 0)
+  let monPrice = 0
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=monad&vs_currencies=usd')
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.monad?.usd > 0) monPrice = data.monad.usd
-    }
-  } catch { /* fallback */ }
+    const { getMonPrice } = await import('@/lib/mon-price')
+    const priceResult = await getMonPrice()
+    if (priceResult.price !== null) monPrice = priceResult.price
+  } catch { /* oracle unavailable — show 0 */ }
 
   return NextResponse.json({
     positions: enriched,
