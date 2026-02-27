@@ -86,17 +86,27 @@ export async function verifyMonadPayment(txHash: string, expectedAmountUSD: numb
   computedUSD?: number
 }> {
   try {
-    // Batch RPC: receipt + full tx in a single request with timeout
-    const batchRes = await fetchRpcWithTimeout(MONAD_RPC, [
-      { jsonrpc: '2.0', method: 'eth_getTransactionReceipt', params: [txHash], id: 1 },
-      { jsonrpc: '2.0', method: 'eth_getTransactionByHash', params: [txHash], id: 2 },
-    ])
-    const batchData = await batchRes.json() as Array<{ id: number; result: Record<string, string> | null }>
+    // Retry loop: wait for Monad to confirm the transaction (up to ~10s)
+    let receipt: Record<string, string> | null = null
+    let tx: Record<string, string> | null = null
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const batchRes = await fetchRpcWithTimeout(MONAD_RPC, [
+        { jsonrpc: '2.0', method: 'eth_getTransactionReceipt', params: [txHash], id: 1 },
+        { jsonrpc: '2.0', method: 'eth_getTransactionByHash', params: [txHash], id: 2 },
+      ])
+      const batchData = await batchRes.json() as Array<{ id: number; result: Record<string, string> | null }>
 
-    const receipt = batchData.find(r => r.id === 1)?.result
-    const tx = batchData.find(r => r.id === 2)?.result
+      receipt = batchData.find(r => r.id === 1)?.result ?? null
+      tx = batchData.find(r => r.id === 2)?.result ?? null
 
-    if (!receipt) return { verified: false, error: 'Transaction not found' }
+      if (receipt) break // Transaction confirmed
+      // Wait before retrying (1s, 2s, 2s, 3s)
+      const delay = [1000, 2000, 2000, 3000, 3000][attempt]
+      console.log(`[Payment] Tx not confirmed yet, retry ${attempt + 1}/5 in ${delay}ms...`)
+      await new Promise(r => setTimeout(r, delay))
+    }
+
+    if (!receipt) return { verified: false, error: 'Transaction not confirmed after 10s' }
     if (receipt.status !== '0x1') return { verified: false, error: 'Transaction failed' }
     if (!tx) return { verified: false, error: 'Transaction data not found' }
 
