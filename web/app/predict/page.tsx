@@ -3288,6 +3288,16 @@ export default function PredictChat() {
         </div>
       </header>
 
+      {/* Beta Disclaimer */}
+      <div className="border-b border-amber-500/20 bg-amber-500/[0.04] flex-shrink-0">
+        <div className="max-w-2xl mx-auto px-4 py-2 flex items-center gap-2">
+          <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+          <span className="text-[10px] font-mono text-amber-500/80">
+            Proceed with caution — Beta v0.1. This is an experimental version and may involve financial risks.
+          </span>
+        </div>
+      </div>
+
       {/* Unlock Toast */}
       {showUnlockToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
