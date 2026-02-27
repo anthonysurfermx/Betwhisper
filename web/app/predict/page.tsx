@@ -13,7 +13,7 @@ import {
   Swords, Gamepad2, CircleDot, Bitcoin, Dribbble,
   Trophy, Zap,
   Users, Link2, Copy, Check, Plus, ArrowLeft, Crown, Lock, Unlock,
-  MessageSquare, Trash2, Clock,
+  MessageSquare, Trash2, Clock, Radio, MapPin,
 } from 'lucide-react'
 import {
   Drawer, DrawerContent, DrawerTrigger, DrawerTitle,
@@ -81,6 +81,7 @@ type ChatAttachment =
   | { type: 'sellTimeline'; steps: BetTimelineStep[]; marketSlug: string }
   | { type: 'contextInsight'; insight: string; keyStats: string[] }
   | { type: 'transactionHistory'; orders: OrderHistory[] }
+  | { type: 'pulseMarket'; market: MarketInfo; analysis: DeepAnalysisResult; groupCode: string; conditionId: string }
 
 interface OrderHistory {
   id: number; marketSlug: string; side: string; amountUSD: number; shares: number; fillPrice: number
@@ -1004,6 +1005,259 @@ function AIExplanationAttachment({ lines, market, analysis, lang, onNext }: {
         <button onClick={() => onNext(market, analysis)}
           className="w-full py-2.5 text-[13px] font-semibold bg-white text-black hover:bg-white/90 transition-colors active:scale-[0.97]">
           {t(lang, 'betNow')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Chat Attachment: Pulse Market (Step 3.5 - Social Heatmap) ───
+
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
+
+interface PulsePoint {
+  lng: number; lat: number; intensity: number; side: string; timestamp: number
+}
+
+interface FloatingTrade {
+  id: string; amount: string; side: string; x: number; y: number
+}
+
+function PulseMarketAttachment({ market, analysis, groupCode, conditionId, lang, onTrade }: {
+  market: MarketInfo; analysis: DeepAnalysisResult; groupCode: string; conditionId: string; lang: Lang
+  onTrade: (market: MarketInfo, analysis: DeepAnalysisResult) => void
+}) {
+  const mapContainer = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const [points, setPoints] = useState<PulsePoint[]>([])
+  const [memberCount, setMemberCount] = useState(1)
+  const [floaters, setFloaters] = useState<FloatingTrade[]>([])
+  const [scanActive, setScanActive] = useState(false)
+  const prevCount = useRef(0)
+  const [copied, setCopied] = useState(false)
+
+  // Hardcoded venue center (Foundry NYC area / Manhattan)
+  const mapCenter: [number, number] = [-73.9857, 40.7484]
+
+  // Initialize Mapbox
+  useEffect(() => {
+    if (!mapContainer.current || mapRef.current || !MAPBOX_TOKEN) return
+    import('mapbox-gl').then((mapboxgl) => {
+      mapboxgl.default.accessToken = MAPBOX_TOKEN
+      const map = new mapboxgl.default.Map({
+        container: mapContainer.current!,
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: mapCenter,
+        zoom: 13.5,
+        pitch: 0,
+        bearing: 0,
+        interactive: false,
+        attributionControl: false,
+      })
+      map.dragRotate.disable()
+      map.touchZoomRotate.disableRotation()
+      map.on('load', () => {
+        map.addSource('pulse-heat', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        })
+        map.addLayer({
+          id: 'pulse-heatmap',
+          type: 'heatmap',
+          source: 'pulse-heat',
+          paint: {
+            'heatmap-weight': ['get', 'intensity'],
+            'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 13, 1.5, 16, 2.5],
+            'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 15, 13, 30, 16, 50],
+            'heatmap-color': [
+              'interpolate', ['linear'], ['heatmap-density'],
+              0, 'rgba(0,0,0,0)',
+              0.1, 'rgba(15,25,80,0.4)',
+              0.25, 'rgba(50,20,140,0.6)',
+              0.4, 'rgba(131,110,249,0.7)',
+              0.55, 'rgba(180,40,60,0.8)',
+              0.7, 'rgba(220,100,20,0.85)',
+              0.85, 'rgba(255,180,30,0.9)',
+              1.0, 'rgba(255,240,80,0.95)',
+            ],
+            'heatmap-opacity': 0.85,
+          },
+        })
+        mapRef.current = map
+        setMapLoaded(true)
+      })
+    })
+    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Update heatmap data
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return
+    const source = mapRef.current.getSource('pulse-heat') as mapboxgl.GeoJSONSource
+    if (!source) return
+    source.setData({
+      type: 'FeatureCollection',
+      features: points.map(p => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+        properties: { intensity: p.intensity, side: p.side },
+      })),
+    })
+  }, [points, mapLoaded])
+
+  // Poll heatmap data every 1.5s
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/pulse/heatmap?conditionId=${conditionId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setPoints(data.points || [])
+        }
+      } catch {}
+    }
+    poll()
+    const interval = setInterval(poll, 1500)
+    return () => clearInterval(interval)
+  }, [conditionId])
+
+  // Poll member count every 3s
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/groups/${groupCode}`)
+        if (res.ok) {
+          const data = await res.json()
+          setMemberCount(data.members?.length || data.member_count || 1)
+        }
+      } catch {}
+    }
+    poll()
+    const interval = setInterval(poll, 3000)
+    return () => clearInterval(interval)
+  }, [groupCode])
+
+  // Floating indicators on new trades
+  useEffect(() => {
+    if (points.length > prevCount.current && prevCount.current > 0) {
+      const newPts = points.slice(prevCount.current)
+      const amountMap: Record<number, string> = { 0.3: '1', 0.5: '5', 0.7: '25', 1: '50' }
+      const newFloaters: FloatingTrade[] = newPts.map(p => ({
+        id: `${Date.now()}-${Math.random()}`,
+        amount: amountMap[p.intensity >= 0.9 ? 1 : p.intensity >= 0.6 ? 0.7 : p.intensity >= 0.4 ? 0.5 : 0.3] || '1',
+        side: p.side,
+        x: 15 + Math.random() * 70,
+        y: 15 + Math.random() * 60,
+      }))
+      setFloaters(prev => [...prev, ...newFloaters])
+      setScanActive(true)
+      setTimeout(() => setScanActive(false), 2100)
+      setTimeout(() => {
+        setFloaters(prev => prev.filter(f => !newFloaters.find(n => n.id === f.id)))
+      }, 3000)
+    }
+    prevCount.current = points.length
+  }, [points])
+
+  const joinUrl = `https://betwhisper.ai/predict?join=${groupCode}&market=${market.slug}`
+
+  return (
+    <div className="mt-2 border border-[#836EF9]/20 bg-[#836EF9]/[0.03]">
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b border-[#836EF9]/10 flex items-center gap-2">
+        <Radio className="w-3.5 h-3.5 text-[#836EF9]" />
+        <span className="text-[9px] font-bold font-mono text-[#836EF9] tracking-[1.5px]">PULSE MARKET</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <Users className="w-3 h-3 text-white/30" />
+          <span className="text-[11px] font-mono font-bold text-white">{memberCount}</span>
+          <span className="text-[9px] font-mono text-white/30">traders</span>
+        </div>
+      </div>
+
+      {/* Detection message */}
+      <div className="px-4 py-2.5 border-b border-white/[0.04] flex items-center gap-2">
+        <MapPin className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+        <span className="text-[11px] font-mono text-emerald-500/90">
+          {lang === 'es'
+            ? `Detecté ${memberCount} trader${memberCount > 1 ? 's' : ''} cerca de tu ubicación`
+            : `Detected ${memberCount} trader${memberCount > 1 ? 's' : ''} near your location`}
+        </span>
+        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+      </div>
+
+      {/* Inline Heatmap */}
+      <div className="relative h-[250px] overflow-hidden">
+        {MAPBOX_TOKEN ? (
+          <>
+            <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+            {/* Vignette */}
+            <div className="absolute inset-0 pointer-events-none z-[5]"
+              style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%)' }} />
+            {/* Scan line */}
+            {scanActive && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden z-[15]">
+                <div className="absolute left-0 right-0 h-[2px] animate-scan"
+                  style={{ background: 'linear-gradient(to right, transparent, rgba(131,110,249,0.5), transparent)', boxShadow: '0 0 20px 4px rgba(131,110,249,0.3)' }} />
+              </div>
+            )}
+            {/* Floating indicators */}
+            {floaters.map(f => (
+              <div key={f.id} className="absolute pointer-events-none z-[20] animate-float-up"
+                style={{ left: `${f.x}%`, top: `${f.y}%` }}>
+                <span className={`text-[14px] font-bold font-mono drop-shadow-lg ${f.side === 'Yes' || f.side === 'yes' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  +${f.amount}
+                </span>
+              </div>
+            ))}
+            {/* Privacy badge */}
+            <div className="absolute top-3 left-3 z-20">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 backdrop-blur-md bg-black/40 border border-white/[0.06]">
+                <Shield className="w-2.5 h-2.5 text-emerald-500" />
+                <span className="text-[8px] font-mono text-emerald-500/80 tracking-[1.5px] uppercase">Encrypted by Unlink</span>
+                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <span className="text-[10px] font-mono text-white/30">MAPBOX TOKEN REQUIRED</span>
+          </div>
+        )}
+      </div>
+
+      {/* QR Code + Join Info */}
+      <div className="px-4 py-3 border-t border-white/[0.06]">
+        <div className="flex items-center gap-4">
+          <div className="bg-white p-2 rounded flex-shrink-0">
+            <QRCodeSVG value={joinUrl} size={90} level="H" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[8px] font-mono text-white/25 tracking-[2px] mb-1">SCAN TO JOIN PULSE</div>
+            <div className="text-[15px] font-bold font-mono text-white mb-1">{market.question.length > 35 ? market.question.slice(0, 35) + '...' : market.question}</div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[11px] font-mono text-[#836EF9] font-bold">{groupCode}</span>
+              <button onClick={() => { navigator.clipboard.writeText(joinUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                className="p-1 hover:bg-white/5 transition-colors">
+                {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-white/30" />}
+              </button>
+            </div>
+            <div className="flex items-center gap-3 text-[10px] font-mono text-white/30">
+              <span>Yes {(market.yesPrice * 100).toFixed(0)}%</span>
+              <span>No {(market.noPrice * 100).toFixed(0)}%</span>
+              <span className="text-emerald-500/60">{points.length} trades</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Trade Button */}
+      <div className="px-4 py-3 border-t border-white/[0.06]">
+        <button onClick={() => onTrade(market, analysis)}
+          className="w-full py-2.5 text-[13px] font-semibold bg-[#836EF9] text-white hover:bg-[#836EF9]/80 transition-colors active:scale-[0.97] flex items-center justify-center gap-2">
+          <Zap className="w-4 h-4" />
+          {lang === 'es' ? 'TRADEAR AHORA' : 'TRADE NOW'}
         </button>
       </div>
     </div>
@@ -2387,6 +2641,11 @@ export default function PredictChat() {
         setInlineJoinCode(saved)
       }
     }
+    // Read market slug from Pulse QR code
+    const marketParam = params.get('market')
+    if (marketParam) {
+      sessionStorage.setItem('bw_pulse_market', marketParam)
+    }
     // Read lat/lng from Pulse trade buttons
     const lat = params.get('lat')
     const lng = params.get('lng')
@@ -2601,6 +2860,34 @@ export default function PredictChat() {
   const updateMessage = useCallback((id: string, attachment: ChatAttachment) => {
     setMessages(prev => prev.map(m => m.id === id ? { ...m, attachment } : m))
   }, [])
+
+  // Auto-load Pulse market after successful QR join
+  const pulseMarketLoaded = useRef(false)
+  useEffect(() => {
+    if (inlineJoinResult !== 'success' || pulseMarketLoaded.current) return
+    const pulseMarket = sessionStorage.getItem('bw_pulse_market')
+    if (!pulseMarket) return
+    pulseMarketLoaded.current = true
+    sessionStorage.removeItem('bw_pulse_market')
+    ;(async () => {
+      try {
+        const mRes = await fetch(`/api/markets?q=${encodeURIComponent(pulseMarket)}&limit=1`)
+        if (mRes.ok) {
+          const mData = await mRes.json()
+          const events = mData.events || []
+          for (const event of events) {
+            const m = (event.markets || []).find((mk: MarketInfo) => mk.slug === pulseMarket) || (event.markets || [])[0]
+            if (m) {
+              addMessage('assistant', `Welcome to the Pulse! Trading: ${m.question}`, {
+                type: 'betChoice', slug: m.slug, yesPrice: m.yesPrice, noPrice: m.noPrice,
+              })
+              break
+            }
+          }
+        }
+      } catch {}
+    })()
+  }, [inlineJoinResult, addMessage])
 
   // ─── Handlers ───
 
@@ -3195,7 +3482,54 @@ export default function PredictChat() {
     }
   }, [isProcessing, addMessage, removeMessage, lang, aiGateEligible])
 
-  // Step 3 -> Step 3.5: Ask how much to invest
+  // Step 3 -> Pulse Market: Show heatmap + QR before trading
+  const handlePulseMarket = useCallback(async (market: MarketInfo, analysis: DeepAnalysisResult) => {
+    setIsProcessing(true)
+    try {
+      // Check if user already has a group for this market
+      let groupCode = ''
+      if (address) {
+        const groupsRes = await fetch(`/api/groups?wallet=${address}`)
+        if (groupsRes.ok) {
+          const groups = await groupsRes.json()
+          const existing = groups.find((g: { market_slug?: string }) => g.market_slug === market.slug)
+          if (existing) groupCode = existing.invite_code
+        }
+      }
+      // Create new group if none found
+      if (!groupCode && address) {
+        const createRes = await fetch('/api/groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `Pulse: ${market.question.slice(0, 40)}`,
+            mode: 'leaderboard',
+            creator_wallet: address,
+            market_slug: market.slug,
+          }),
+        })
+        if (createRes.ok) {
+          const group = await createRes.json()
+          groupCode = group.invite_code
+        }
+      }
+      if (!groupCode) {
+        // Fallback: skip Pulse, go straight to bet amount
+        addMessage('assistant', t(lang, 'howMuchInvest'), { type: 'betAmountInput', market, analysis })
+        return
+      }
+      addMessage('assistant', '', {
+        type: 'pulseMarket', market, analysis, groupCode, conditionId: market.conditionId,
+      })
+    } catch {
+      // On error, fallback to normal flow
+      addMessage('assistant', t(lang, 'howMuchInvest'), { type: 'betAmountInput', market, analysis })
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [address, addMessage, setIsProcessing])
+
+  // Step 3.5: Ask how much to invest
   const handleAskAmount = useCallback((market: MarketInfo, analysis: DeepAnalysisResult) => {
     addMessage('assistant', t(lang, 'howMuchInvest'), {
       type: 'betAmountInput', market, analysis,
@@ -3397,7 +3731,12 @@ export default function PredictChat() {
                   )}
                   {msg.attachment.type === 'aiExplanation' && (
                     <AIExplanationAttachment lines={msg.attachment.lines} market={msg.attachment.market}
-                      analysis={msg.attachment.analysis} lang={lang} onNext={handleAskAmount} />
+                      analysis={msg.attachment.analysis} lang={lang} onNext={handlePulseMarket} />
+                  )}
+                  {msg.attachment.type === 'pulseMarket' && (
+                    <PulseMarketAttachment market={msg.attachment.market} analysis={msg.attachment.analysis}
+                      groupCode={msg.attachment.groupCode} conditionId={msg.attachment.conditionId}
+                      lang={lang} onTrade={handleAskAmount} />
                   )}
                   {msg.attachment.type === 'betAmountInput' && (
                     <BetAmountInputAttachment market={msg.attachment.market} analysis={msg.attachment.analysis}

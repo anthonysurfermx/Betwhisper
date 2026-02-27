@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Web3Provider } from '@/components/web3-provider'
+import 'mapbox-gl/dist/mapbox-gl.css'
 
 export const metadata: Metadata = {
   title: "BetWhisper — Predict",

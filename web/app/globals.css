@@ -246,4 +246,15 @@
   .animate-pulse-glow {
     animation: pulse-glow 0.8s ease-out forwards;
   }
+
+  /* Floating trade indicator */
+  @keyframes float-up {
+    0% { opacity: 0; transform: translateY(0) scale(0.8); }
+    15% { opacity: 1; transform: translateY(-8px) scale(1.15); }
+    75% { opacity: 0.7; transform: translateY(-40px) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(0.9); }
+  }
+  .animate-float-up {
+    animation: float-up 2.5s ease-out forwards;
+  }
 }
