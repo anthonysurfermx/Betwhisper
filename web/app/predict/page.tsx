@@ -4,7 +4,8 @@ import { useWeb3 } from '@/components/web3-provider'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { parseIntent } from '@/lib/intents'
 import { executeBet } from '@/lib/monad-bet'
-import { MONAD_EXPLORER } from '@/lib/constants'
+import { MONAD_EXPLORER, MON_TOKEN } from '@/lib/constants'
+import { useUnlink, useDeposit, useTransfer } from '@unlink-xyz/react'
 import Link from 'next/link'
 import {
   Wallet, LogOut, Loader2, AlertTriangle,
@@ -1769,25 +1770,26 @@ function BetTimelineAttachment({ steps, side, amount, market }: {
       <div className="space-y-0">
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1
-          const dotColor = step.status === 'confirmed' ? 'bg-emerald-500'
-            : step.status === 'processing' ? 'bg-amber-400 animate-pulse'
+          const isPrivacyStep = step.chain === 'Unlink' || step.chain === 'ZK Proof'
+          const dotColor = step.status === 'confirmed' ? (isPrivacyStep ? 'bg-[#836EF9]' : 'bg-emerald-500')
+            : step.status === 'processing' ? (isPrivacyStep ? 'bg-[#836EF9] animate-pulse' : 'bg-amber-400 animate-pulse')
             : step.status === 'error' ? 'bg-red-500'
             : 'bg-white/20'
-          const textColor = step.status === 'confirmed' ? 'text-white/60'
-            : step.status === 'processing' ? 'text-amber-400'
+          const textColor = step.status === 'confirmed' ? (isPrivacyStep ? 'text-[#836EF9]/80' : 'text-white/60')
+            : step.status === 'processing' ? (isPrivacyStep ? 'text-[#836EF9]' : 'text-amber-400')
             : step.status === 'error' ? 'text-red-400'
             : 'text-white/20'
 
           return (
             <div key={i} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className={`w-2.5 h-2.5 ${dotColor} flex-shrink-0 mt-1`} />
-                {!isLast && <div className={`w-px flex-1 min-h-[20px] ${step.status === 'confirmed' ? 'bg-emerald-500/30' : 'bg-white/10'}`} />}
+                <div className={`w-2.5 h-2.5 ${dotColor} flex-shrink-0 mt-1 ${step.status === 'confirmed' && isPrivacyStep ? 'animate-privacy-shield' : ''}`} />
+                {!isLast && <div className={`w-px flex-1 min-h-[20px] ${step.status === 'confirmed' ? (isPrivacyStep ? 'bg-[#836EF9]/30' : 'bg-emerald-500/30') : 'bg-white/10'}`} />}
               </div>
               <div className="pb-3 flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className={`text-[11px] font-bold font-mono ${textColor} tracking-[0.5px]`}>{step.label}</span>
-                  <span className="text-[8px] font-mono text-white/15 px-1 py-0.5 border border-white/[0.06]">{step.chain}</span>
+                  <span className={`text-[8px] font-mono px-1 py-0.5 border ${isPrivacyStep ? 'text-[#836EF9]/40 border-[#836EF9]/15' : 'text-white/15 border-white/[0.06]'}`}>{step.chain}</span>
                 </div>
                 {step.detail && (
                   <div className="text-[10px] font-mono text-white/30 mt-0.5">{step.detail}</div>
@@ -1806,6 +1808,14 @@ function BetTimelineAttachment({ steps, side, amount, market }: {
           )
         })}
       </div>
+      {/* Encrypted by Unlink badge — shown when privacy steps are present */}
+      {steps.some(s => s.chain === 'Unlink' || s.chain === 'ZK Proof') && steps.every(s => s.status === 'confirmed') && (
+        <div className="mt-1 pt-2 border-t border-[#836EF9]/10 flex items-center gap-2 animate-privacy-glow">
+          <Shield className="w-3 h-3 text-[#836EF9]/60" />
+          <span className="text-[9px] font-mono text-[#836EF9]/50 tracking-[1px]">ENCRYPTED BY UNLINK</span>
+          <span className="text-[8px] font-mono text-white/15">Deposit and trade are cryptographically unlinkable</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -2869,6 +2879,45 @@ function ConversationsDrawer({ address, lang, conversations, currentConversation
 export default function PredictChat() {
   const { address, isConnected, connect, disconnect, signer } = useWeb3()
 
+  // Unlink privacy wallet
+  const { walletExists, ready: unlinkReady, createWallet, activeAccount } = useUnlink()
+  const { execute: unlinkDeposit } = useDeposit()
+  const { execute: unlinkTransfer } = useTransfer()
+  const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
+
+  // Fetch server's Unlink address on mount
+  useEffect(() => {
+    fetch('/api/unlink/address').then(r => r.json()).then(d => {
+      if (d.address) setServerUnlinkAddr(d.address)
+    }).catch(() => {})
+  }, [])
+
+  // Auto-create Unlink wallet if none exists (once SDK is ready)
+  useEffect(() => {
+    if (unlinkReady && !walletExists) {
+      createWallet().then(({ mnemonic }) => {
+        // Store mnemonic for recovery — user can export later
+        try { sessionStorage.setItem('bw_unlink_mnemonic', mnemonic) } catch {}
+        console.log('[Unlink] Wallet created')
+      }).catch(e => console.warn('[Unlink] Wallet creation failed:', e))
+    }
+  }, [unlinkReady, walletExists, createWallet])
+
+  // Recovery state: detect pending Unlink deposit from interrupted flow
+  const [unlinkRecovery, setUnlinkRecovery] = useState<{
+    market: string; side: string; amount: string; signalHash: string; conditionId: string; monAmountWei: string
+  } | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('bw_unlink_pending')
+      if (raw) {
+        const pending = JSON.parse(raw)
+        if (pending.market && pending.amount) setUnlinkRecovery(pending)
+      }
+    } catch {}
+  }, [])
+
   const [assistantName, setAssistantNameState] = useState<string | null>(null)
   const [lang, setLangState] = useState<Lang>('en')
   const [onboarded, setOnboarded] = useState<boolean | null>(null)
@@ -3204,6 +3253,105 @@ export default function PredictChat() {
     }
   }, [addMessage, removeMessage, lang])
 
+  // Recovery handler: resume interrupted Unlink flow (skip deposit, go to transfer)
+  const handleUnlinkRecovery = useCallback(async () => {
+    if (!unlinkRecovery || !unlinkReady || !walletExists || !serverUnlinkAddr) return
+
+    const { market, side, amount, signalHash, conditionId, monAmountWei } = unlinkRecovery
+
+    // Build a 3-step timeline (skip deposit — already done)
+    const steps: BetTimelineStep[] = [
+      { label: 'PRIVATE TRANSFER', chain: 'ZK Proof', status: 'pending', detail: lang === 'es' ? 'Reanudando transferencia...' : 'Resuming transfer...' },
+      { label: 'CLOB EXECUTION', chain: 'Polygon', status: 'pending' },
+      { label: t(lang, 'positionOpen'), chain: 'Confirmed', status: 'pending' },
+    ]
+    const timelineId = addMessage('assistant', '', { type: 'betTimeline', steps: [...steps], side, amount, market })
+    const updateTimeline = (s: BetTimelineStep[]) => updateMessage(timelineId, { type: 'betTimeline', steps: [...s], side, amount, market })
+
+    // Step 1: Private transfer (deposit already in pool)
+    steps[0].status = 'processing'
+    steps[0].detail = lang === 'es' ? 'Generando prueba ZK...' : 'Generating ZK proof...'
+    updateTimeline(steps)
+
+    let unlinkRelayId: string | null = null
+    try {
+      const transferResult = await unlinkTransfer([{
+        token: MON_TOKEN,
+        recipient: serverUnlinkAddr,
+        amount: BigInt(monAmountWei),
+      }])
+      unlinkRelayId = transferResult.relayId
+      steps[0].status = 'confirmed'
+      steps[0].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
+      updateTimeline(steps)
+
+      try { sessionStorage.removeItem('bw_unlink_pending') } catch {}
+      setUnlinkRecovery(null)
+    } catch (err) {
+      steps[0].status = 'error'
+      steps[0].errorMsg = err instanceof Error ? err.message : 'Private transfer failed'
+      updateTimeline(steps)
+      return
+    }
+
+    // Step 2: CLOB execution
+    steps[1].status = 'processing'
+    steps[1].detail = lang === 'es' ? 'Ejecutando orden...' : 'Executing order...'
+    updateTimeline(steps)
+
+    try {
+      const res = await fetch('/api/bet/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conditionId, outcomeIndex: side === 'Yes' ? 0 : 1,
+          amountUSD: parseFloat(amount), signalHash, marketSlug: market,
+          side, walletAddress: address,
+          unlinkRelayId, unlinkAmount: parseFloat(amount), executionMode: 'unlink',
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        steps[1].status = 'confirmed'
+        steps[1].txHash = data.polygonTxHash || data.txHash
+        steps[1].explorerUrl = data.explorerUrl
+        steps[1].detail = `$${parseFloat(amount).toFixed(2)} USDC → ${data.shares?.toFixed(1) || '?'} shares`
+        updateTimeline(steps)
+
+        // Step 3: Position recording
+        steps[2].status = 'processing'
+        updateTimeline(steps)
+        await fetch('/api/bet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            marketSlug: market, side, amount, walletAddress: address || 'demo',
+            txHash: data.polygonTxHash || data.txHash, signalHash, source: data.source,
+            conditionId, shares: data.shares, price: data.price,
+            tokenId: data.tokenId, tickSize: data.tickSize, negRisk: data.negRisk,
+            unlinkRelayId, executionMode: 'unlink',
+          }),
+        }).catch(() => {})
+        steps[2].status = 'confirmed'
+        steps[2].detail = `${side.toUpperCase()} @ $${data.price?.toFixed(2)} · ${data.shares?.toFixed(1)} shares`
+        updateTimeline(steps)
+      } else {
+        steps[1].status = 'error'
+        steps[1].errorMsg = data.error || 'CLOB execution failed'
+        updateTimeline(steps)
+      }
+    } catch {
+      steps[1].status = 'error'
+      steps[1].errorMsg = lang === 'es' ? 'Error de red' : 'Network error'
+      updateTimeline(steps)
+    }
+  }, [unlinkRecovery, unlinkReady, walletExists, serverUnlinkAddr, unlinkTransfer, address, addMessage, updateMessage, lang])
+
+  const dismissUnlinkRecovery = useCallback(() => {
+    try { sessionStorage.removeItem('bw_unlink_pending') } catch {}
+    setUnlinkRecovery(null)
+  }, [])
+
   const handleBetPrompt = useCallback((side: 'Yes' | 'No', slug: string, signalHash: string, conditionId?: string) => {
     addMessage('user', `${side} on this market`)
     addMessage('assistant', t(lang, 'howMuch'), { type: 'betPrompt', side, slug, signalHash, conditionId: conditionId || '' })
@@ -3229,25 +3377,29 @@ export default function PredictChat() {
       }
     }
 
-    // Initialize timeline
-    const steps: BetTimelineStep[] = [
-      { label: 'MON PAYMENT', chain: 'Monad', status: 'pending' },
-      { label: 'CLOB EXECUTION', chain: 'Polygon', status: 'pending' },
-      { label: t(lang, 'positionOpen'), chain: 'Confirmed', status: 'pending' },
-    ]
+    // Determine if Unlink privacy path is available
+    const useUnlinkPath = unlinkReady && walletExists && serverUnlinkAddr && activeAccount
+
+    // Initialize timeline — 4 steps for Unlink, 3 for direct
+    const steps: BetTimelineStep[] = useUnlinkPath
+      ? [
+          { label: 'PRIVACY DEPOSIT', chain: 'Unlink', status: 'pending' },
+          { label: 'PRIVATE TRANSFER', chain: 'ZK Proof', status: 'pending' },
+          { label: 'CLOB EXECUTION', chain: 'Polygon', status: 'pending' },
+          { label: t(lang, 'positionOpen'), chain: 'Confirmed', status: 'pending' },
+        ]
+      : [
+          { label: 'MON PAYMENT', chain: 'Monad', status: 'pending' },
+          { label: 'CLOB EXECUTION', chain: 'Polygon', status: 'pending' },
+          { label: t(lang, 'positionOpen'), chain: 'Confirmed', status: 'pending' },
+        ]
     const timelineId = addMessage('assistant', '', { type: 'betTimeline', steps: [...steps], side, amount, market: slug })
     const updateTimeline = (newSteps: BetTimelineStep[]) => {
       updateMessage(timelineId, { type: 'betTimeline', steps: [...newSteps], side, amount, market: slug })
     }
 
-    // Step 1: MON Payment
-    steps[0].status = 'processing'
-    steps[0].detail = lang === 'es' ? 'Obteniendo precio MON...' : 'Fetching MON price...'
-    updateTimeline(steps)
-
-    let monadTxHash: string | null = null
+    // Get MON price
     let monPriceUSD = 0.021
-
     try {
       const priceRes = await fetch('/api/mon-price')
       if (priceRes.ok) {
@@ -3256,31 +3408,103 @@ export default function PredictChat() {
       }
     } catch { /* use fallback */ }
 
-    const monAmount = (parseFloat(amount) / monPriceUSD * 1.01).toFixed(4)
-    steps[0].detail = `${monAmount} MON ($${amount} USD)`
-    updateTimeline(steps)
+    const amountUSD = parseFloat(amount)
+    const monAmountNum = (amountUSD / monPriceUSD) * 1.01
+    const monAmount = monAmountNum.toFixed(4)
+    const monAmountWei = BigInt(Math.floor(monAmountNum * 1e18))
 
-    try {
-      const result = await executeBet(signer, {
-        marketSlug: slug, side, amountUSD: parseFloat(amount), monPriceUSD, signalHash,
-      })
-      monadTxHash = result.txHash
-      steps[0].status = 'confirmed'
-      steps[0].txHash = result.txHash
-      steps[0].explorerUrl = result.explorerUrl
-      steps[0].detail = `${result.monAmount} MON sent`
+    let monadTxHash: string | null = null
+    let unlinkRelayId: string | null = null
+
+    if (useUnlinkPath) {
+      // ─── UNLINK PRIVACY PATH ───
+      // Step 1: Deposit MON into Unlink privacy pool
+      steps[0].status = 'processing'
+      steps[0].detail = lang === 'es' ? 'Depositando en pool de privacidad...' : 'Depositing to privacy pool...'
       updateTimeline(steps)
-    } catch (err) {
-      steps[0].status = 'error'
-      steps[0].errorMsg = err instanceof Error ? err.message : t(lang, 'txRejected')
-      steps[0].detail = undefined
+
+      try {
+        const depositResult = await unlinkDeposit([{
+          token: MON_TOKEN,
+          amount: monAmountWei,
+          depositor: address!,
+        }])
+        steps[0].status = 'confirmed'
+        steps[0].detail = `${monAmount} MON → Privacy Pool`
+        updateTimeline(steps)
+
+        // Save pending state for recovery if transfer fails or page refreshes
+        try {
+          sessionStorage.setItem('bw_unlink_pending', JSON.stringify({
+            market: slug, side, amount, signalHash, conditionId: resolvedConditionId || '',
+            monAmountWei: monAmountWei.toString(),
+          }))
+        } catch {}
+      } catch (err) {
+        steps[0].status = 'error'
+        steps[0].errorMsg = err instanceof Error ? err.message : 'Deposit failed'
+        updateTimeline(steps)
+        return
+      }
+
+      // Step 2: Private transfer to BetWhisper (fully hidden via ZK proof)
+      steps[1].status = 'processing'
+      steps[1].detail = lang === 'es' ? 'Generando prueba ZK...' : 'Generating ZK proof...'
       updateTimeline(steps)
-      return
+
+      try {
+        const transferResult = await unlinkTransfer([{
+          token: MON_TOKEN,
+          recipient: serverUnlinkAddr,
+          amount: monAmountWei,
+        }])
+        unlinkRelayId = transferResult.relayId
+        steps[1].status = 'confirmed'
+        steps[1].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
+        updateTimeline(steps)
+
+        // Clear recovery state — transfer succeeded
+        try { sessionStorage.removeItem('bw_unlink_pending') } catch {}
+        setUnlinkRecovery(null)
+      } catch (err) {
+        steps[1].status = 'error'
+        steps[1].errorMsg = err instanceof Error ? err.message : 'Private transfer failed'
+        steps[1].detail = lang === 'es' ? 'Tus fondos están seguros en tu wallet Unlink' : 'Your funds are safe in your Unlink wallet'
+        updateTimeline(steps)
+        return
+      }
+    } else {
+      // ─── DIRECT MON PAYMENT PATH (existing flow) ───
+      steps[0].status = 'processing'
+      steps[0].detail = `${monAmount} MON ($${amount} USD)`
+      updateTimeline(steps)
+
+      try {
+        const result = await executeBet(signer, {
+          marketSlug: slug, side, amountUSD, monPriceUSD, signalHash,
+        })
+        monadTxHash = result.txHash
+        steps[0].status = 'confirmed'
+        steps[0].txHash = result.txHash
+        steps[0].explorerUrl = result.explorerUrl
+        steps[0].detail = `${result.monAmount} MON sent`
+        updateTimeline(steps)
+      } catch (err) {
+        steps[0].status = 'error'
+        steps[0].errorMsg = err instanceof Error ? err.message : t(lang, 'txRejected')
+        steps[0].detail = undefined
+        updateTimeline(steps)
+        return
+      }
     }
 
-    // Step 2: CLOB Execution
-    steps[1].status = 'processing'
-    steps[1].detail = lang === 'es' ? 'Ejecutando orden...' : 'Executing order...'
+    // Dynamic step indices: Unlink path has 4 steps, direct has 3
+    const clobIdx = useUnlinkPath ? 2 : 1
+    const posIdx = useUnlinkPath ? 3 : 2
+
+    // CLOB Execution step
+    steps[clobIdx].status = 'processing'
+    steps[clobIdx].detail = lang === 'es' ? 'Ejecutando orden...' : 'Executing order...'
     updateTimeline(steps)
 
     let clobResult: { txHash: string; explorerUrl: string; source: string; shares: number; price: number; tokenId: string; tickSize: string; negRisk: boolean } | null = null
@@ -3301,6 +3525,8 @@ export default function PredictChat() {
             side,
             walletAddress: address,
             ...(pulseGeo ? { lat: pulseGeo.lat, lng: pulseGeo.lng } : {}),
+            // Unlink private transfer path
+            ...(unlinkRelayId ? { unlinkRelayId, unlinkAmount: amountUSD, executionMode: 'unlink' } : {}),
           }),
         })
         const data = await res.json()
@@ -3316,38 +3542,38 @@ export default function PredictChat() {
             negRisk: data.negRisk || false,
           }
         } else {
-          steps[1].status = 'error'
-          steps[1].errorMsg = data.error || 'CLOB execution failed'
+          steps[clobIdx].status = 'error'
+          steps[clobIdx].errorMsg = data.error || 'CLOB execution failed'
           if (data.orphanedPayment) {
-            steps[1].errorMsg += lang === 'es'
-              ? ' (Tu pago MON fue registrado. Contacta soporte para reembolso.)'
-              : ' (Your MON payment was recorded. Contact support for refund.)'
+            steps[clobIdx].errorMsg += lang === 'es'
+              ? ' (Tu pago fue registrado. Contacta soporte para reembolso.)'
+              : ' (Your payment was recorded. Contact support for refund.)'
           }
-          steps[1].detail = undefined
+          steps[clobIdx].detail = undefined
           updateTimeline(steps)
           return
         }
       } catch {
-        steps[1].status = 'error'
-        steps[1].errorMsg = t(lang, 'networkError')
+        steps[clobIdx].status = 'error'
+        steps[clobIdx].errorMsg = t(lang, 'networkError')
         updateTimeline(steps)
         return
       }
     } else {
-      steps[1].status = 'error'
-      steps[1].errorMsg = 'No market conditionId'
+      steps[clobIdx].status = 'error'
+      steps[clobIdx].errorMsg = 'No market conditionId'
       updateTimeline(steps)
       return
     }
 
-    steps[1].status = 'confirmed'
-    steps[1].txHash = clobResult.txHash
-    steps[1].explorerUrl = clobResult.explorerUrl
-    steps[1].detail = `$${parseFloat(amount).toFixed(2)} USDC → ${clobResult.shares.toFixed(1)} shares`
+    steps[clobIdx].status = 'confirmed'
+    steps[clobIdx].txHash = clobResult.txHash
+    steps[clobIdx].explorerUrl = clobResult.explorerUrl
+    steps[clobIdx].detail = `$${parseFloat(amount).toFixed(2)} USDC → ${clobResult.shares.toFixed(1)} shares`
     updateTimeline(steps)
 
-    // Step 3: Record position
-    steps[2].status = 'processing'
+    // Record position step
+    steps[posIdx].status = 'processing'
     updateTimeline(steps)
 
     await fetch('/api/bet', {
@@ -3358,11 +3584,14 @@ export default function PredictChat() {
         txHash: clobResult.txHash, signalHash, source: clobResult.source, monadTxHash,
         conditionId: resolvedConditionId, shares: clobResult.shares, price: clobResult.price,
         tokenId: clobResult.tokenId, tickSize: clobResult.tickSize, negRisk: clobResult.negRisk,
+        ...(unlinkRelayId ? { unlinkRelayId, executionMode: 'unlink' } : {}),
       }),
     }).catch(() => {})
 
-    steps[2].status = 'confirmed'
-    steps[2].detail = `${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
+    steps[posIdx].status = 'confirmed'
+    steps[posIdx].detail = useUnlinkPath
+      ? `🔒 ${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
+      : `${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
     updateTimeline(steps)
 
     // Add a text-based bet result message for conversation persistence

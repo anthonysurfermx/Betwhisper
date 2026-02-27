@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Web3Provider } from '@/components/web3-provider'
+import { UnlinkWrapper } from '@/components/unlink-provider'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 export const metadata: Metadata = {
@@ -25,5 +26,9 @@ export default function PredictLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <Web3Provider>{children}</Web3Provider>
+  return (
+    <Web3Provider>
+      <UnlinkWrapper>{children}</UnlinkWrapper>
+    </Web3Provider>
+  )
 }

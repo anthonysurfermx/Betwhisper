@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeClobBet, getUSDCBalance } from '@/lib/polymarket-clob'
 import { verifyMonadPayment } from '@/lib/monad-bet'
+import { verifyUnlinkTransfer } from '@/lib/unlink-server'
 import { MAX_BET_USD, POLYGON_EXPLORER, DAILY_SPEND_LIMIT_USD, PAYMENT_TOLERANCE, RATE_LIMIT_PER_MINUTE } from '@/lib/constants'
 import { sql } from '@/lib/db'
 
@@ -35,13 +36,15 @@ async function ensureOrdersTable() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `
-  // Add refund columns + indexes in parallel (all idempotent)
+  // Add refund + unlink columns + indexes in parallel (all idempotent)
   await Promise.all([
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_status TEXT DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_tx_hash TEXT DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_mon_amount NUMERIC DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_attempted_at TIMESTAMP DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_error TEXT DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS unlink_relay_id TEXT DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS execution_mode TEXT DEFAULT 'direct'`,
     sql`CREATE INDEX IF NOT EXISTS idx_orders_wallet_status ON orders(wallet_address, status)`,
     sql`CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at)`,
   ])
@@ -135,53 +138,117 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // Require monadTxHash for real execution
-  if (!monadTxHash) {
-    return NextResponse.json({ error: 'Missing monadTxHash: payment required before execution' }, { status: 400 })
+  // Determine execution mode: Unlink private transfer OR direct MON payment
+  const { unlinkRelayId, executionMode } = body
+  const isUnlinkPath = executionMode === 'unlink' && unlinkRelayId
+
+  // Require payment proof for real execution
+  if (!isUnlinkPath && !monadTxHash) {
+    return NextResponse.json({ error: 'Missing monadTxHash or unlinkRelayId: payment required before execution' }, { status: 400 })
   }
 
-  // REPLAY PROTECTION: Check if this monadTxHash was already used
-  const existing = await sql`
-    SELECT id, status, polygon_tx_hash FROM orders WHERE monad_tx_hash = ${monadTxHash} LIMIT 1
-  `
-  if (existing.length > 0) {
-    const order = existing[0]
-    if (order.status === 'success') {
+  const { side: clientSide } = body
+  const side = clientSide || (outcomeIndex === 0 ? 'Yes' : 'No')
+  let verifiedAmountUSD = amount
+  let walletForRateLimit = (body.walletAddress || '').toLowerCase()
+  const orderKey = isUnlinkPath ? unlinkRelayId : monadTxHash
+
+  if (isUnlinkPath) {
+    // ─── UNLINK PRIVACY PATH ───
+    console.log(`[Unlink] Verifying private transfer: ${unlinkRelayId}`)
+
+    // REPLAY PROTECTION: Check if this relayId was already used
+    const existing = await sql`
+      SELECT id, status, polygon_tx_hash FROM orders WHERE unlink_relay_id = ${unlinkRelayId} LIMIT 1
+    `
+    if (existing.length > 0) {
+      const order = existing[0]
+      if (order.status === 'success') {
+        return NextResponse.json({
+          error: 'This private transfer was already used',
+          existingPolygonTxHash: order.polygon_tx_hash,
+        }, { status: 409 })
+      }
+      if (order.status === 'pending') {
+        return NextResponse.json({ error: 'This transfer is already being processed' }, { status: 409 })
+      }
+      if (order.status === 'clob_failed') {
+        await sql`DELETE FROM orders WHERE id = ${order.id}`
+      }
+    }
+
+    // Verify the private transfer was confirmed on Unlink relay
+    try {
+      const txStatus = await verifyUnlinkTransfer(unlinkRelayId)
+      if (txStatus.state !== 'succeeded') {
+        return NextResponse.json({
+          error: `Private transfer not confirmed: ${txStatus.state}`,
+        }, { status: 400 })
+      }
+      console.log(`[Unlink] Transfer confirmed: ${txStatus.txHash || 'relay-only'}`)
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Transfer verification failed'
+      console.error('[Unlink] Verification error:', errMsg)
+      return NextResponse.json({ error: errMsg }, { status: 408 })
+    }
+
+    // Insert order as PENDING with Unlink relay ID
+    await sql`
+      INSERT INTO orders (monad_tx_hash, unlink_relay_id, execution_mode, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, status)
+      VALUES (${unlinkRelayId}, ${unlinkRelayId}, 'unlink', ${walletForRateLimit}, ${marketSlug}, ${conditionId}, ${side},
+              ${amount}, ${amount}, 'pending')
+    `
+  } else {
+    // ─── DIRECT MON PAYMENT PATH (existing flow) ───
+
+    // REPLAY PROTECTION: Check if this monadTxHash was already used
+    const existing = await sql`
+      SELECT id, status, polygon_tx_hash FROM orders WHERE monad_tx_hash = ${monadTxHash} LIMIT 1
+    `
+    if (existing.length > 0) {
+      const order = existing[0]
+      if (order.status === 'success') {
+        return NextResponse.json({
+          error: `This payment was already used for order #${order.id}`,
+          existingPolygonTxHash: order.polygon_tx_hash,
+        }, { status: 409 })
+      }
+      if (order.status === 'pending') {
+        return NextResponse.json({ error: 'This payment is already being processed' }, { status: 409 })
+      }
+      if (order.status === 'clob_failed') {
+        await sql`DELETE FROM orders WHERE id = ${order.id}`
+      }
+    }
+
+    // Payment gate: verify MON payment on Monad
+    const verification = await verifyMonadPayment(monadTxHash, amount, monPriceUSD || 0)
+    if (!verification.verified) {
+      console.error('[Payment Gate] Verification failed:', verification.error)
       return NextResponse.json({
-        error: `This payment was already used for order #${order.id}`,
-        existingPolygonTxHash: order.polygon_tx_hash,
-      }, { status: 409 })
+        error: `Payment not verified: ${verification.error}`,
+      }, { status: 400 })
     }
-    if (order.status === 'pending') {
-      return NextResponse.json({ error: 'This payment is already being processed' }, { status: 409 })
+
+    verifiedAmountUSD = verification.computedUSD || amount
+    if (verifiedAmountUSD < amount * (1 - PAYMENT_TOLERANCE)) {
+      return NextResponse.json({
+        error: `Payment too low: on-chain value ~$${verifiedAmountUSD.toFixed(2)}, bet requires $${amount.toFixed(2)}`,
+      }, { status: 400 })
     }
-    // If status is 'clob_failed', allow retry (delete old record)
-    if (order.status === 'clob_failed') {
-      await sql`DELETE FROM orders WHERE id = ${order.id}`
-    }
-  }
 
-  // Payment gate: verify MON payment on Monad
-  const verification = await verifyMonadPayment(monadTxHash, amount, monPriceUSD || 0)
-  if (!verification.verified) {
-    console.error('[Payment Gate] Verification failed:', verification.error)
-    return NextResponse.json({
-      error: `Payment not verified: ${verification.error}`,
-    }, { status: 400 })
-  }
+    console.log(`[Payment Gate] Verified: ${verification.value} MON from ${verification.from} (~$${verifiedAmountUSD.toFixed(2)})`)
+    walletForRateLimit = (verification.from || '').toLowerCase()
 
-  // PRICE VERIFICATION: Compute USD from on-chain MON value (don't trust client)
-  const verifiedAmountUSD = verification.computedUSD || amount
-  if (verifiedAmountUSD < amount * (1 - PAYMENT_TOLERANCE)) {
-    return NextResponse.json({
-      error: `Payment too low: on-chain value ~$${verifiedAmountUSD.toFixed(2)}, bet requires $${amount.toFixed(2)}`,
-    }, { status: 400 })
+    // Insert order as PENDING (locks the monadTxHash)
+    await sql`
+      INSERT INTO orders (monad_tx_hash, execution_mode, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, mon_paid, mon_price_usd, status)
+      VALUES (${monadTxHash}, 'direct', ${verification.from || ''}, ${marketSlug}, ${conditionId}, ${side},
+              ${amount}, ${verifiedAmountUSD}, ${verification.value || '0'}, ${monPriceUSD || 0}, 'pending')
+    `
   }
-
-  console.log(`[Payment Gate] Verified: ${verification.value} MON from ${verification.from} (~$${verifiedAmountUSD.toFixed(2)})`)
 
   // Per-wallet rate limit: max N trades per 60 seconds
-  const walletForRateLimit = (verification.from || '').toLowerCase()
   if (walletForRateLimit) {
     const recentOrders = await sql`
       SELECT COUNT(*) as cnt FROM orders
@@ -195,19 +262,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Insert order as PENDING before CLOB execution (locks the monadTxHash)
-  const { side: clientSide } = body
-  const side = clientSide || (outcomeIndex === 0 ? 'Yes' : 'No')
-  await sql`
-    INSERT INTO orders (monad_tx_hash, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, mon_paid, mon_price_usd, status)
-    VALUES (${monadTxHash}, ${verification.from || ''}, ${marketSlug}, ${conditionId}, ${side},
-            ${amount}, ${verifiedAmountUSD}, ${verification.value || '0'}, ${monPriceUSD || 0}, 'pending')
-  `
-
   // Check USDC balance — FAIL-OPEN: proceed if RPC fails (balance unknown)
   const balance = await getUSDCBalance()
   if (balance >= 0 && balance < amount) {
-    await sql`UPDATE orders SET status = 'clob_failed', error_msg = 'Insufficient USDC balance', updated_at = NOW() WHERE monad_tx_hash = ${monadTxHash}`
+    await sql`UPDATE orders SET status = 'clob_failed', error_msg = 'Insufficient USDC balance', updated_at = NOW() WHERE monad_tx_hash = ${orderKey}`
     return NextResponse.json({
       error: `Insufficient USDC balance: $${balance.toFixed(2)} available, $${amount} needed`,
       orphanedPayment: true,
@@ -239,12 +297,12 @@ export async function POST(request: NextRequest) {
         shares = ${result.shares},
         fill_price = ${result.price},
         updated_at = NOW()
-      WHERE monad_tx_hash = ${monadTxHash}
+      WHERE monad_tx_hash = ${orderKey}
     `
 
     return NextResponse.json({
       success: true,
-      source: 'polymarket',
+      source: isUnlinkPath ? 'polymarket-unlink' : 'polymarket',
       orderID: result.orderID,
       txHash: result.transactionHashes[0] || '',
       polygonTxHash: result.transactionHashes[0] || '',
@@ -253,6 +311,8 @@ export async function POST(request: NextRequest) {
       amountUSD: result.amountUSD,
       explorerUrl: result.explorerUrl,
       monadTxHash: monadTxHash || null,
+      unlinkRelayId: unlinkRelayId || null,
+      executionMode: isUnlinkPath ? 'unlink' : 'direct',
       marketSlug,
       side,
       tokenId: result.tokenId,
@@ -263,10 +323,10 @@ export async function POST(request: NextRequest) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
     console.error('[CLOB Execute] Error:', msg)
 
-    // ORPHANED FUNDS: Mark order as clob_failed (MON paid but CLOB rejected)
+    // ORPHANED FUNDS: Mark order as clob_failed
     await sql`
       UPDATE orders SET status = 'clob_failed', error_msg = ${msg}, updated_at = NOW()
-      WHERE monad_tx_hash = ${monadTxHash}
+      WHERE monad_tx_hash = ${orderKey}
     `
 
     return NextResponse.json({ error: msg, orphanedPayment: true }, { status: 500 })

@@ -46,3 +46,10 @@ export const REFUND_GAS_BUFFER_MON = 0.1     // Gas buffer deducted from refunds
 // Consensus thresholds
 export const MIN_SMART_WALLETS_FOR_SIGNAL = 2
 export const CONVICTION_CAP = 3.0
+
+// Unlink Privacy Pool (Monad Testnet)
+export const UNLINK_POOL = '0x0813da0a10328e5ed617d37e514ac2f6fa49a254'
+export const UNLINK_GATEWAY = 'https://api.unlink.xyz'
+export const MONAD_TESTNET_CHAIN_ID = 10143
+export const MON_TOKEN = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+export const UNLINK_TRANSFER_TIMEOUT_MS = 30_000 // Max wait for private transfer confirmation
