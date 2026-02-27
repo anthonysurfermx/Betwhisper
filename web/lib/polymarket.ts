@@ -308,11 +308,46 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
   // 1. Check if query maps to a sports league ("liga mx", "nba", "f1")
   const leagueSlug = detectLeague(query)
   if (leagueSlug) {
-    console.log(`[Search] Path: league tag="${leagueSlug}"`)
-    return fetchEvents(new URLSearchParams({
+    // Find which league keyword matched so we can detect extra words
+    const qNormLeague = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+    const matchedKey = Object.keys(LEAGUE_MAP).sort((a, b) => b.length - a.length).find(k => qNormLeague.includes(k)) || ''
+    const extraWords = qNormLeague.replace(matchedKey, '').trim().split(/\s+/).filter(w => w.length > 2)
+
+    if (extraWords.length === 0) {
+      // Pure league query ("nba", "liga mx") → return top events unfiltered
+      console.log(`[Search] Path: league tag="${leagueSlug}" (pure)`)
+      return fetchEvents(new URLSearchParams({
+        _limit: '20', active: 'true', closed: 'false',
+        tag_slug: leagueSlug, order: 'volume24hr', ascending: 'false',
+      }))
+    }
+
+    // League + extra words ("nba champion", "nba finals") → fetch then filter
+    console.log(`[Search] Path: league tag="${leagueSlug}" + filter="${extraWords.join(' ')}"`)
+    const leagueEvents = await fetchEvents(new URLSearchParams({
       _limit: '20', active: 'true', closed: 'false',
       tag_slug: leagueSlug, order: 'volume24hr', ascending: 'false',
     }))
+
+    const scored = leagueEvents.map(e => {
+      const titleLower = e.title.toLowerCase()
+      const marketQuestions = e.markets.map(m => m.question.toLowerCase())
+      // Check if extra words appear in title or any market question
+      const titleHits = extraWords.filter(w => titleLower.includes(w)).length
+      const marketHits = extraWords.filter(w => marketQuestions.some(q => q.includes(w))).length
+      const score = Math.max(titleHits, marketHits)
+      return { event: e, score }
+    })
+
+    const filtered = scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score || b.event.volume - a.event.volume)
+      .map(s => s.event)
+
+    console.log(`[Search] League+filter: ${filtered.length}/${leagueEvents.length} match "${extraWords.join(' ')}"`)
+    if (filtered.length > 0) return filtered.slice(0, limit)
+    // Fallback: return unfiltered if no matches
+    return leagueEvents.slice(0, limit)
   }
 
   // 2. Check if query matches a team name ("Pumas", "Chivas", "Lakers")
