@@ -7,11 +7,11 @@ export const MONAD_EXPLORER = 'https://monadscan.com'
 
 // Polygon (Polymarket CLOB execution)
 export const POLYGON_CHAIN_ID = 137
-export const POLYGON_RPC = process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com'
+export const POLYGON_RPC = process.env.POLYGON_RPC_URL || 'https://polygon-bor-rpc.publicnode.com'
 export const POLYGON_RPC_FALLBACKS = [
-  'https://polygon-rpc.com',
-  'https://rpc.ankr.com/polygon',
   'https://polygon-bor-rpc.publicnode.com',
+  'https://1rpc.io/matic',
+  'https://polygon.drpc.org',
 ]
 export const POLYGON_EXPLORER = 'https://polygonscan.com'
 
