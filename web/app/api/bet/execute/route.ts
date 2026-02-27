@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     `.catch((e: unknown) => console.error('[Pulse] Failed to save trade:', e instanceof Error ? e.message : e))
   }
 
-  // Mock mode (panic button for demo)
+  // Mock mode (panic button for demo) — v2: returns tokenId/tickSize/negRisk
   if (process.env.MOCK_POLYGON_EXECUTION?.toLowerCase() === 'true') {
     await new Promise(r => setTimeout(r, 500))
     const mockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`

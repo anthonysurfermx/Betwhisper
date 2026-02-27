@@ -58,12 +58,25 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await executeClobSell({
-      tokenId,
-      shares: Math.min(sharesToSell, currentShares),
-      tickSize: tickSize || '0.01',
-      negRisk: negRisk || false,
-    })
+    const isMock = process.env.MOCK_POLYGON_EXECUTION?.toLowerCase() === 'true'
+    const actualShares = Math.min(sharesToSell, currentShares)
+    const avgPrice = parseFloat(position.avg_price)
+
+    // Mock mode: simulate CLOB sell
+    const result = isMock
+      ? {
+          shares: actualShares,
+          amountUSD: actualShares * avgPrice,
+          price: avgPrice,
+          transactionHashes: [`0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`],
+          explorerUrl: '',
+        }
+      : await executeClobSell({
+          tokenId,
+          shares: actualShares,
+          tickSize: tickSize || '0.01',
+          negRisk: negRisk || false,
+        })
 
     // Update position in database
     const remainingShares = currentShares - (result.shares || sharesToSell)
