@@ -204,23 +204,17 @@ export async function POST(request: NextRequest) {
             ${amount}, ${verifiedAmountUSD}, ${verification.value || '0'}, ${monPriceUSD || 0}, 'pending')
   `
 
-  // Check USDC balance — FAIL-CLOSED: refuse trade if balance check fails
+  // Check USDC balance — FAIL-OPEN: proceed if RPC fails (balance unknown)
   const balance = await getUSDCBalance()
-  if (balance < 0) {
-    // RPC failed — cannot verify balance, refuse to proceed
-    await sql`UPDATE orders SET status = 'clob_failed', error_msg = 'USDC balance check failed (RPC error)', updated_at = NOW() WHERE monad_tx_hash = ${monadTxHash}`
-    return NextResponse.json({
-      error: 'Unable to verify USDC balance. Please try again in a moment.',
-      orphanedPayment: true,
-      retryable: true,
-    }, { status: 503 })
-  }
-  if (balance < amount) {
+  if (balance >= 0 && balance < amount) {
     await sql`UPDATE orders SET status = 'clob_failed', error_msg = 'Insufficient USDC balance', updated_at = NOW() WHERE monad_tx_hash = ${monadTxHash}`
     return NextResponse.json({
       error: `Insufficient USDC balance: $${balance.toFixed(2)} available, $${amount} needed`,
       orphanedPayment: true,
     }, { status: 400 })
+  }
+  if (balance < 0) {
+    console.warn('[CLOB] Balance check failed (RPC error) — proceeding anyway')
   }
 
   try {
