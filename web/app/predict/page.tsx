@@ -6,6 +6,7 @@ import { parseIntent } from '@/lib/intents'
 import { executeBet } from '@/lib/monad-bet'
 import { MONAD_EXPLORER, MON_TOKEN } from '@/lib/constants'
 import { useUnlink, useDeposit, useTransfer } from '@unlink-xyz/react'
+import { useLivePrices, usePriceFlash } from '@/hooks/use-live-price'
 import Link from 'next/link'
 import {
   Wallet, LogOut, Loader2, AlertTriangle,
@@ -1983,14 +1984,92 @@ function PinVerifyAttachment({ wallet, onSuccess, lang }: { wallet: string; onSu
 
 // ─── Chat Attachment: Balance View ───
 
+function BalancePositionRow({ pos, onSell, lang }: { pos: BalancePosition; onSell: (pos: BalancePosition) => void; lang: Lang }) {
+  const { midPrice, direction } = usePriceFlash(pos.tokenId || undefined)
+  // Use live price if available, otherwise fall back to API price
+  const livePrice = midPrice > 0 ? midPrice : pos.currentPrice
+  const livePnl = pos.shares * (livePrice - pos.avgPrice)
+  const livePnlPct = pos.avgPrice > 0 ? ((livePrice - pos.avgPrice) / pos.avgPrice) * 100 : 0
+  const liveValue = pos.shares * livePrice
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] text-white/70 truncate pr-2">{pos.marketSlug}</div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 ${pos.side === 'Yes' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-400 bg-red-400/10'}`}>
+              {pos.side.toUpperCase()}
+            </span>
+            <span className="text-[10px] font-mono text-white/25">{pos.shares.toFixed(1)} shares</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className={`text-[13px] font-mono font-bold tabular-nums transition-colors duration-300 ${livePnl >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+              {livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}
+            </div>
+            <div className={`text-[9px] font-mono tabular-nums ${livePnlPct >= 0 ? 'text-emerald-500/60' : 'text-red-400/60'}`}>
+              {livePnlPct >= 0 ? '+' : ''}{livePnlPct.toFixed(1)}%
+            </div>
+          </div>
+          <button onClick={() => onSell(pos)}
+            className="px-3 py-1.5 text-[10px] font-bold font-mono tracking-[1px] border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors">
+            {t(lang, 'sell')}
+          </button>
+        </div>
+      </div>
+      {/* Price bar: entry → current with live flash */}
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-[9px] font-mono text-white/20">${pos.avgPrice.toFixed(2)}</span>
+        <div className="flex-1 h-px bg-white/[0.06] relative">
+          <div
+            className={`absolute top-0 left-0 h-full transition-all duration-500 ${livePnl >= 0 ? 'bg-emerald-500/40' : 'bg-red-400/40'}`}
+            style={{ width: `${Math.min(Math.abs(livePnlPct), 100)}%` }}
+          />
+        </div>
+        <span className={`text-[9px] font-mono font-bold tabular-nums transition-colors duration-300 ${direction === 'up' ? 'text-emerald-400' : direction === 'down' ? 'text-red-400' : 'text-white/40'}`}>
+          ${livePrice.toFixed(2)}
+          {direction === 'up' && <span className="ml-0.5 text-emerald-400">&#9650;</span>}
+          {direction === 'down' && <span className="ml-0.5 text-red-400">&#9660;</span>}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function BalanceViewAttachment({ positions, totalValue, totalPnl, onSell, onHistory, lang }: {
   positions: BalancePosition[]; totalValue: number; totalPnl: number
   onSell: (pos: BalancePosition) => void; onHistory: () => void; lang: Lang
 }) {
+  // Subscribe to live prices for all positions
+  const tokenIds = positions.map(p => p.tokenId).filter(Boolean)
+  const livePrices = useLivePrices(tokenIds)
+
+  // Compute live totals
+  const liveTotals = positions.reduce((acc, pos) => {
+    const lp = livePrices.get(pos.tokenId)
+    const price = lp ? lp.midPrice : pos.currentPrice
+    const value = pos.shares * price
+    const pnl = value - pos.costBasis
+    return { value: acc.value + value, pnl: acc.pnl + pnl }
+  }, { value: 0, pnl: 0 })
+
+  const displayValue = livePrices.size > 0 ? liveTotals.value : totalValue
+  const displayPnl = livePrices.size > 0 ? liveTotals.pnl : totalPnl
+
   return (
     <div className="mt-2 border border-white/[0.10] bg-white/[0.04]">
       <div className="px-4 py-2 border-b border-white/[0.06] flex items-center justify-between">
-        <span className="text-[9px] font-bold font-mono text-white/30 tracking-[1.5px]">{t(lang, 'yourPositions')}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-bold font-mono text-white/30 tracking-[1.5px]">{t(lang, 'yourPositions')}</span>
+          {livePrices.size > 0 && (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-emerald-500 animate-pulse" />
+              <span className="text-[8px] font-mono text-emerald-500/50">LIVE</span>
+            </span>
+          )}
+        </div>
         <button onClick={onHistory}
           className="text-[9px] font-bold font-mono text-white/30 tracking-[1px] hover:text-white/50 transition-colors">
           {t(lang, 'viewHistory')}
@@ -1999,42 +2078,19 @@ function BalanceViewAttachment({ positions, totalValue, totalPnl, onSell, onHist
       <div className="grid grid-cols-2 gap-px bg-white/[0.06]">
         <div className="bg-black px-4 py-3">
           <div className="text-[10px] text-white/30 mb-0.5">Value</div>
-          <div className="text-[16px] font-bold font-mono text-white">${totalValue.toFixed(2)}</div>
+          <div className="text-[16px] font-bold font-mono text-white tabular-nums">${displayValue.toFixed(2)}</div>
         </div>
         <div className="bg-black px-4 py-3">
           <div className="text-[10px] text-white/30 mb-0.5">P&L</div>
-          <div className={`text-[16px] font-bold font-mono ${totalPnl >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-            {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+          <div className={`text-[16px] font-bold font-mono tabular-nums ${displayPnl >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+            {displayPnl >= 0 ? '+' : ''}${displayPnl.toFixed(2)}
           </div>
         </div>
       </div>
       {positions.length > 0 ? (
         <div className="divide-y divide-white/[0.06]">
           {positions.map(pos => (
-            <div key={pos.id} className="px-4 py-3">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] text-white/70 truncate pr-2">{pos.marketSlug}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-[10px] font-bold font-mono ${pos.side === 'Yes' ? 'text-emerald-500' : 'text-red-400'}`}>
-                      {pos.side.toUpperCase()}
-                    </span>
-                    <span className="text-[10px] font-mono text-white/20">
-                      {pos.shares.toFixed(1)} @ ${pos.avgPrice.toFixed(2)} → ${pos.currentPrice.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[12px] font-mono font-semibold ${pos.pnl >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                    {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)}
-                  </span>
-                  <button onClick={() => onSell(pos)}
-                    className="px-3 py-1 text-[10px] font-bold font-mono tracking-[1px] border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors">
-                    {t(lang, 'sell')}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <BalancePositionRow key={pos.id} pos={pos} onSell={onSell} lang={lang} />
           ))}
         </div>
       ) : (
@@ -2216,6 +2272,9 @@ function BetPromptAttachment({ side, slug, signalHash, conditionId, lang, onConf
 // ─── Chat Attachment: Portfolio ───
 
 function PortfolioAttachment({ data }: { data: PortfolioData }) {
+  const pnlColor = data.stats.totalPnl >= 0 ? 'text-emerald-500' : 'text-red-400'
+  const winRateColor = data.stats.winRate >= 60 ? 'text-emerald-500' : data.stats.winRate >= 40 ? 'text-amber-400' : 'text-red-400'
+
   return (
     <div className="mt-2 border border-white/[0.10] bg-white/[0.04]">
       <div className="px-4 py-2 border-b border-white/[0.06]">
@@ -2223,30 +2282,45 @@ function PortfolioAttachment({ data }: { data: PortfolioData }) {
       </div>
       <div className="grid grid-cols-2 gap-px bg-white/[0.06]">
         {[
-          { label: 'Value', value: `$${data.portfolioValue.toFixed(2)}` },
-          { label: 'P&L', value: `${data.stats.totalPnl >= 0 ? '+' : ''}$${data.stats.totalPnl.toFixed(2)}`, color: data.stats.totalPnl >= 0 ? 'text-emerald-500' : 'text-red-400' },
-          { label: 'Win Rate', value: `${data.stats.winRate}%` },
-          { label: 'Positions', value: String(data.stats.openPositions) },
+          { label: 'Value', value: `$${data.portfolioValue.toFixed(2)}`, color: 'text-white' },
+          { label: 'P&L', value: `${data.stats.totalPnl >= 0 ? '+' : ''}$${data.stats.totalPnl.toFixed(2)}`, color: pnlColor },
+          { label: 'Win Rate', value: `${data.stats.winRate}%`, color: winRateColor },
+          { label: 'Positions', value: String(data.stats.openPositions), color: 'text-white' },
         ].map(s => (
           <div key={s.label} className="bg-black px-4 py-3">
             <div className="text-[10px] text-white/30 mb-0.5">{s.label}</div>
-            <div className={`text-[16px] font-bold font-mono ${s.color || 'text-white'}`}>{s.value}</div>
+            <div className={`text-[16px] font-bold font-mono tabular-nums ${s.color}`}>{s.value}</div>
           </div>
         ))}
       </div>
       {data.positions.length > 0 && (
-        <div className="px-4 py-2 border-t border-white/[0.06]">
-          {data.positions.slice(0, 5).map(pos => (
-            <div key={`${pos.conditionId}-${pos.outcome}`} className="flex items-center justify-between py-1.5">
-              <div className="flex-1 min-w-0">
-                <div className="text-[12px] text-white/70 truncate pr-4">{pos.title}</div>
-                <span className={`text-[10px] font-bold font-mono ${pos.outcome === 'Yes' ? 'text-emerald-500' : 'text-red-400'}`}>{pos.outcome}</span>
+        <div className="border-t border-white/[0.06]">
+          {data.positions.slice(0, 5).map(pos => {
+            const pnlPct = pos.avgPrice > 0 ? ((pos.currentPrice - pos.avgPrice) / pos.avgPrice) * 100 : 0
+            return (
+              <div key={`${pos.conditionId}-${pos.outcome}`} className="px-4 py-2.5 border-b border-white/[0.04] last:border-b-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] text-white/70 truncate pr-4">{pos.title}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-[10px] font-bold font-mono px-1 py-0.5 ${pos.outcome === 'Yes' ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-400 bg-red-400/10'}`}>
+                        {pos.outcome}
+                      </span>
+                      <span className="text-[9px] font-mono text-white/20">{pos.size.toFixed(1)} @ ${pos.avgPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-[13px] font-mono font-bold tabular-nums ${pos.pnl >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                      {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)}
+                    </div>
+                    <div className={`text-[9px] font-mono tabular-nums ${pnlPct >= 0 ? 'text-emerald-500/50' : 'text-red-400/50'}`}>
+                      {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span className={`text-[12px] font-mono font-semibold ${pos.pnl >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                {pos.pnl >= 0 ? '+' : ''}${Math.abs(pos.pnl).toFixed(2)}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
