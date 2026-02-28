@@ -2955,7 +2955,7 @@ export default function PredictChat() {
   const { address, isConnected, connect, disconnect, signer } = useWeb3()
 
   // Unlink privacy wallet
-  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, refresh: unlinkRefresh } = useUnlink()
+  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, refresh: unlinkRefresh, forceResync: unlinkForceResync, wallet: unlinkWallet } = useUnlink()
   const { execute: unlinkDeposit } = useDeposit()
   const { execute: unlinkTransfer } = useTransfer()
   const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
@@ -3539,8 +3539,19 @@ export default function PredictChat() {
         updateTimeline(steps)
         await waitForConfirmation(depositResult.relayId, { timeout: 120_000 })
 
-        // Refresh wallet to sync the new balance from the pool
-        await unlinkRefresh()
+        // Poll until balance reflects the deposit (indexer can lag behind confirmation)
+        steps[0].detail = lang === 'es' ? 'Sincronizando balance...' : 'Syncing balance...'
+        updateTimeline(steps)
+        for (let syncAttempt = 0; syncAttempt < 12; syncAttempt++) {
+          await unlinkForceResync()
+          // Read balance directly from wallet SDK (React state is stale in async closure)
+          const currentBal = unlinkWallet
+            ? await unlinkWallet.getBalance(MON_TOKEN)
+            : BigInt(0)
+          if (currentBal >= monAmountWei) break
+          // Wait 3s between retries (up to ~36s total)
+          await new Promise(r => setTimeout(r, 3000))
+        }
 
         steps[0].status = 'confirmed'
         steps[0].detail = `${monAmount} MON → Privacy Pool`
