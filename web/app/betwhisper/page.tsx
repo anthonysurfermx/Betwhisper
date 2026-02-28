@@ -230,7 +230,7 @@ export default function BetWhisperLanding() {
                 href="/pulse"
                 className="px-6 py-3 border border-[#836EF9]/30 text-[14px] text-[#836EF9] hover:bg-[#836EF9]/5 transition-all active:scale-[0.97]"
               >
-                Open Social Pulse
+                Open Social Map
               </Link>
             </div>
 
@@ -339,7 +339,7 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">Shows you the crowd around you.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Social Pulse is a live heatmap of what people near you are betting. Opt-in only — activate with PIN + Face ID. Your exact location is never shared.
+                Social Map is a live heatmap of what people near you are betting. Opt-in only — activate with PIN + Face ID. Your exact location is never shared.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">

@@ -21,7 +21,7 @@ const labels = {
   en: {
     off: 'PRIVATE MODE',
     activating: 'VERIFYING...',
-    on: 'SOCIAL PULSE',
+    on: 'SOCIAL MAP',
     pinTitle: 'ENTER PIN TO ACTIVATE',
     bioTitle: 'CONFIRM IDENTITY',
     bioPrompt: 'Use Face ID or fingerprint',
@@ -33,7 +33,7 @@ const labels = {
   es: {
     off: 'MODO PRIVADO',
     activating: 'VERIFICANDO...',
-    on: 'SOCIAL PULSE',
+    on: 'SOCIAL MAP',
     pinTitle: 'INGRESA PIN PARA ACTIVAR',
     bioTitle: 'CONFIRMA TU IDENTIDAD',
     bioPrompt: 'Usa Face ID o huella',
@@ -45,7 +45,7 @@ const labels = {
   pt: {
     off: 'MODO PRIVADO',
     activating: 'VERIFICANDO...',
-    on: 'SOCIAL PULSE',
+    on: 'SOCIAL MAP',
     pinTitle: 'DIGITE PIN PARA ATIVAR',
     bioTitle: 'CONFIRME SUA IDENTIDADE',
     bioPrompt: 'Use Face ID ou digital',
@@ -344,7 +344,7 @@ export function SocialPulseToggle({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-[#836EF9]" />
-                <span className="text-[11px] font-mono text-white/70 tracking-[1px]">SOCIAL PULSE</span>
+                <span className="text-[11px] font-mono text-white/70 tracking-[1px]">SOCIAL MAP</span>
               </div>
               <button onClick={dismissGate} className="text-white/20 hover:text-white/40 transition-colors">
                 <span className="text-[16px]">&times;</span>
