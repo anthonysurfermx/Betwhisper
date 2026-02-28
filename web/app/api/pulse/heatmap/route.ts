@@ -233,11 +233,20 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // Fallback: mock data that grows over time
+  // No mock data — return empty state with real zeros
   return NextResponse.json({
-    points: generateMockPoints(),
-    stats: generateMockStats(),
-    source: 'mock',
+    points: [],
+    stats: {
+      marketName: conditionId ? 'Loading...' : 'No active market',
+      conditionId: conditionId || 'none',
+      teamA: { name: 'YES', pct: 0, price: 0 },
+      teamB: { name: 'NO', pct: 0, price: 0 },
+      activeTraders: 0,
+      totalVolume: 0,
+      spikeIndicator: 0,
+      globalComparison: 'No trades yet. Be the first to share your sentiment.',
+    },
+    source: 'live',
     ts: Date.now(),
   })
 }

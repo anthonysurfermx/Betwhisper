@@ -2955,7 +2955,7 @@ export default function PredictChat() {
   const { address, isConnected, connect, disconnect, signer } = useWeb3()
 
   // Unlink privacy wallet
-  const { walletExists, ready: unlinkReady, createWallet, activeAccount } = useUnlink()
+  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation } = useUnlink()
   const { execute: unlinkDeposit } = useDeposit()
   const { execute: unlinkTransfer } = useTransfer()
   const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
@@ -2972,7 +2972,7 @@ export default function PredictChat() {
     if (unlinkReady && !walletExists) {
       createWallet().then(({ mnemonic }) => {
         // Store mnemonic for recovery — user can export later
-        try { sessionStorage.setItem('bw_unlink_mnemonic', mnemonic) } catch {}
+        try { localStorage.setItem('bw_unlink_mnemonic', mnemonic) } catch {}
         console.log('[Unlink] Wallet created')
       }).catch(e => console.warn('[Unlink] Wallet creation failed:', e))
     }
@@ -2985,7 +2985,7 @@ export default function PredictChat() {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('bw_unlink_pending')
+      const raw = localStorage.getItem('bw_unlink_pending')
       if (raw) {
         const pending = JSON.parse(raw)
         if (pending.market && pending.amount) setUnlinkRecovery(pending)
@@ -3371,19 +3371,21 @@ export default function PredictChat() {
     steps[0].detail = lang === 'es' ? 'Generando prueba ZK...' : 'Generating ZK proof...'
     updateTimeline(steps)
 
-    let unlinkRelayId: string | null = null
+    let unlinkTxHash: string | null = null
     try {
       const transferResult = await unlinkTransfer([{
         token: MON_TOKEN,
         recipient: serverUnlinkAddr,
         amount: BigInt(monAmountWei),
       }])
-      unlinkRelayId = transferResult.relayId
+      // Wait for on-chain confirmation to get txHash (relayId is internal, can't verify cross-wallet)
+      const confirmed = await waitForConfirmation(transferResult.relayId, { timeout: 30_000 })
+      unlinkTxHash = confirmed.txHash || transferResult.relayId
       steps[0].status = 'confirmed'
       steps[0].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
       updateTimeline(steps)
 
-      try { sessionStorage.removeItem('bw_unlink_pending') } catch {}
+      try { localStorage.removeItem('bw_unlink_pending') } catch {}
       setUnlinkRecovery(null)
     } catch (err) {
       steps[0].status = 'error'
@@ -3405,7 +3407,7 @@ export default function PredictChat() {
           conditionId, outcomeIndex: side === 'Yes' ? 0 : 1,
           amountUSD: parseFloat(amount), signalHash, marketSlug: market,
           side, walletAddress: address,
-          unlinkRelayId, unlinkAmount: parseFloat(amount), executionMode: 'unlink',
+          unlinkTxHash, unlinkAmount: parseFloat(amount), executionMode: 'unlink',
         }),
       })
       const data = await res.json()
@@ -3427,7 +3429,7 @@ export default function PredictChat() {
             txHash: data.polygonTxHash || data.txHash, signalHash, source: data.source,
             conditionId, shares: data.shares, price: data.price,
             tokenId: data.tokenId, tickSize: data.tickSize, negRisk: data.negRisk,
-            unlinkRelayId, executionMode: 'unlink',
+            unlinkTxHash, executionMode: 'unlink',
           }),
         }).catch(() => {})
         steps[2].status = 'confirmed'
@@ -3446,7 +3448,7 @@ export default function PredictChat() {
   }, [unlinkRecovery, unlinkReady, walletExists, serverUnlinkAddr, unlinkTransfer, address, addMessage, updateMessage, lang])
 
   const dismissUnlinkRecovery = useCallback(() => {
-    try { sessionStorage.removeItem('bw_unlink_pending') } catch {}
+    try { localStorage.removeItem('bw_unlink_pending') } catch {}
     setUnlinkRecovery(null)
   }, [])
 
@@ -3512,7 +3514,7 @@ export default function PredictChat() {
     const monAmountWei = BigInt(Math.floor(monAmountNum * 1e18))
 
     let monadTxHash: string | null = null
-    let unlinkRelayId: string | null = null
+    let unlinkTxHash: string | null = null
 
     if (useUnlinkPath) {
       // ─── UNLINK PRIVACY PATH ───
@@ -3533,7 +3535,7 @@ export default function PredictChat() {
 
         // Save pending state for recovery if transfer fails or page refreshes
         try {
-          sessionStorage.setItem('bw_unlink_pending', JSON.stringify({
+          localStorage.setItem('bw_unlink_pending', JSON.stringify({
             market: slug, side, amount, signalHash, conditionId: resolvedConditionId || '',
             monAmountWei: monAmountWei.toString(),
           }))
@@ -3556,13 +3558,15 @@ export default function PredictChat() {
           recipient: serverUnlinkAddr,
           amount: monAmountWei,
         }])
-        unlinkRelayId = transferResult.relayId
+        // Wait for on-chain confirmation to get txHash (relayId is internal, can't verify cross-wallet)
+        const confirmed = await waitForConfirmation(transferResult.relayId, { timeout: 30_000 })
+        unlinkTxHash = confirmed.txHash || transferResult.relayId
         steps[1].status = 'confirmed'
         steps[1].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
         updateTimeline(steps)
 
         // Clear recovery state — transfer succeeded
-        try { sessionStorage.removeItem('bw_unlink_pending') } catch {}
+        try { localStorage.removeItem('bw_unlink_pending') } catch {}
         setUnlinkRecovery(null)
       } catch (err) {
         steps[1].status = 'error'
@@ -3624,7 +3628,7 @@ export default function PredictChat() {
             walletAddress: address,
             ...(socialPulseActive && pulseGeo ? { lat: pulseGeo.lat, lng: pulseGeo.lng } : {}),
             // Unlink private transfer path
-            ...(unlinkRelayId ? { unlinkRelayId, unlinkAmount: amountUSD, executionMode: 'unlink' } : {}),
+            ...(unlinkTxHash ? { unlinkTxHash, unlinkAmount: amountUSD, executionMode: 'unlink' } : {}),
           }),
         })
         const data = await res.json()
@@ -3682,7 +3686,7 @@ export default function PredictChat() {
         txHash: clobResult.txHash, signalHash, source: clobResult.source, monadTxHash,
         conditionId: resolvedConditionId, shares: clobResult.shares, price: clobResult.price,
         tokenId: clobResult.tokenId, tickSize: clobResult.tickSize, negRisk: clobResult.negRisk,
-        ...(unlinkRelayId ? { unlinkRelayId, executionMode: 'unlink' } : {}),
+        ...(unlinkTxHash ? { unlinkTxHash, executionMode: 'unlink' } : {}),
       }),
     }).catch(() => {})
 

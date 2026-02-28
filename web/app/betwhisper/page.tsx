@@ -86,7 +86,7 @@ function ConversationDemo() {
     { who: 'user', text: `${name}, $5 on Lakers` },
     { who: 'agent', text: '2 bots filtered. Smart money says YES at 78%.', tag: 'PROTECTS' },
     { who: 'agent', text: '12 traders near MSG went Lakers.', tag: 'CONNECTS' },
-    { who: 'agent', text: 'Done. 23.8 shares. Deposit and trade are unlinkable.', tag: 'SIMPLIFIES' },
+    { who: 'agent', text: 'Done. 23.8 shares via ZK pool. Deposit and trade are cryptographically unlinkable.', tag: 'SIMPLIFIES' },
   ]
 
   return (
@@ -147,6 +147,7 @@ export default function BetWhisperLanding() {
   const problem = useInView()
   const solution = useInView()
   const howItWorks = useInView()
+  const privacy = useInView(0.2)
   const stack = useInView()
 
   return (
@@ -189,9 +190,9 @@ export default function BetWhisperLanding() {
             <h1 className={`text-[clamp(2.5rem,7vw,5.5rem)] font-bold leading-[1.0] tracking-tight mb-8 max-w-4xl transition-all duration-700 delay-300 ${
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
             }`}>
-              Who&apos;s really on the
+              The first private social
               <br />
-              other side of your trade?
+              agent layer.
             </h1>
 
             {/* The answer — your agent */}
@@ -199,11 +200,13 @@ export default function BetWhisperLanding() {
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
               <p className="text-[16px] md:text-[18px] text-[--text-secondary] max-w-lg leading-relaxed">
-                Bots. Invisible whales. And you have no idea.
-                <br />
+                Your prediction market trades go through a ZK privacy pool.
+                Nobody can link your deposit to your bet — not the market maker,
+                not the explorer, not even us.
+                <br /><br />
                 <span className="text-white/90">BetWhisper is your <RotatingName /></span> — an AI agent
-                that filters the noise, shows you the real crowd, and executes
-                your trade privately.
+                that filters bots, shows you the real crowd, and executes
+                privately on-chain.
               </p>
             </div>
 
@@ -211,8 +214,8 @@ export default function BetWhisperLanding() {
             <div className={`mb-10 transition-all duration-700 delay-600 ${
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              <span className="text-[13px] text-[--text-secondary] border-l-2 border-white/10 pl-3">
-                The social experience agent for prediction markets
+              <span className="text-[13px] text-[--text-secondary] border-l-2 border-[#836EF9]/40 pl-3">
+                Built on Monad &middot; Privacy by Unlink &middot; Execution on Polymarket
               </span>
             </div>
 
@@ -265,7 +268,7 @@ export default function BetWhisperLanding() {
             {[
               { label: 'Manipulated', desc: 'Bots inflate odds. You can\'t tell real sentiment from manufactured consensus.' },
               { label: 'Isolated', desc: 'You trade alone. No idea what people around you think about the same market.' },
-              { label: 'Exposed', desc: 'Every trade is public. Your wallet, your position, your identity — all on-chain.' },
+              { label: 'Exposed', desc: 'Every trade is public. Your wallet, your position, your identity — all linked on-chain for anyone to see.' },
             ].map((item, i) => (
               <div
                 key={item.label}
@@ -311,7 +314,7 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">Filters bots. Hides your identity.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Agent Radar scans every holder and flags bots before you trade. Unlink breaks the on-chain link between your deposit and your position with ZK proofs.
+                Agent Radar scans every holder and flags bots before you trade. Your MON goes through Unlink&apos;s ZK privacy pool — deposit and bet execution appear as two unrelated transactions on-chain.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
@@ -319,12 +322,16 @@ export default function BetWhisperLanding() {
                   <span className="text-white/60 font-mono">7 behavioral signals</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Smart money</span>
-                  <span className="text-white/60 font-mono">top 50 PnL whales</span>
+                  <span className="text-[--text-secondary]">Privacy layer</span>
+                  <span className="text-white/60 font-mono">Unlink ZK proofs</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Hidden</span>
+                  <span className="text-white/60 font-mono">amount · sender · recipient</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-[--text-secondary]">Privacy</span>
-                  <span className="text-white/60 font-mono">Unlink ZK pool</span>
+                  <span className="text-[--text-secondary]">Chain</span>
+                  <span className="text-white/60 font-mono">Monad Testnet</span>
                 </div>
               </div>
             </div>
@@ -401,10 +408,10 @@ export default function BetWhisperLanding() {
 
           <div className="grid md:grid-cols-4">
             {[
-              { num: '01', title: 'Ask', desc: 'Search any market. Sports, crypto, politics.' },
-              { num: '02', title: 'Scan', desc: 'Agent Radar filters bots and surfaces smart money.' },
-              { num: '03', title: 'Trade', desc: 'Pay with MON. Order executes via ZK privacy pool.' },
-              { num: '04', title: 'Track', desc: 'Live P&L + local heatmap. Sell anytime.' },
+              { num: '01', title: 'Ask', desc: 'Search any market. Sports, crypto, politics. Voice or text.' },
+              { num: '02', title: 'Scan', desc: 'Agent Radar filters bots. Smart money signals surface real conviction.' },
+              { num: '03', title: 'Trade', desc: 'MON deposits into Unlink ZK pool. Private transfer to server. CLOB executes on Polymarket. Zero link between you and the trade.' },
+              { num: '04', title: 'Track', desc: 'Live P&L + Social Map heatmap. See what your city is trading.' },
             ].map((s, i) => (
               <div
                 key={s.num}
@@ -416,6 +423,147 @@ export default function BetWhisperLanding() {
                 <p className="text-[13px] text-[--text-secondary] leading-relaxed">{s.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Privacy Architecture ─── */}
+      <section ref={privacy.ref} className="border-b border-[--border]">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="px-6 py-14 md:py-20 border-b border-[--border]">
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
+              privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              How privacy works.
+            </h2>
+            <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-lg transition-all duration-700 delay-100 ${
+              privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              Your deposit and your trade appear as two unrelated transactions. The ZK proof guarantees correctness without revealing the connection.
+            </p>
+          </div>
+
+          {/* Flow diagram — animated */}
+          <div className="px-6 py-10">
+            <div className="grid md:grid-cols-5 gap-px items-stretch">
+              {/* Step 1: Deposit */}
+              <div className={`border border-amber-500/20 p-5 bg-black transition-all duration-700 ${
+                privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`} style={{ transitionDelay: '200ms' }}>
+                <span className="text-[11px] font-mono text-amber-400 block mb-2">STEP 1</span>
+                <h4 className="text-[15px] font-bold mb-1">Deposit</h4>
+                <p className="text-[12px] text-[--text-secondary] mb-4">MON into Unlink Pool</p>
+                <div className="text-[11px] font-mono text-white/40 leading-relaxed space-y-0.5">
+                  <div>Sender <span className="text-amber-400">visible</span></div>
+                  <div>Amount <span className="text-amber-400">visible</span></div>
+                  <div>Recipient <span className="text-emerald-400">hidden</span></div>
+                </div>
+              </div>
+
+              {/* Arrow 1→2 */}
+              <div className={`hidden md:flex items-center justify-center transition-all duration-500 ${
+                privacy.visible ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'
+              }`} style={{ transitionDelay: '600ms' }}>
+                <div className="flex items-center gap-1">
+                  <div className="h-px w-8 bg-gradient-to-r from-amber-500/40 to-emerald-500/40" style={{
+                    animation: privacy.visible ? 'flowPulse 2s ease-in-out infinite' : 'none',
+                  }} />
+                  <div className="text-emerald-400/60 text-lg font-mono">&rarr;</div>
+                </div>
+              </div>
+
+              {/* Step 2: Private Transfer */}
+              <div className={`border border-emerald-500/20 p-5 bg-black transition-all duration-700 ${
+                privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`} style={{ transitionDelay: '800ms' }}>
+                <span className="text-[11px] font-mono text-emerald-400 block mb-2">STEP 2</span>
+                <h4 className="text-[15px] font-bold mb-1">Private Transfer</h4>
+                <p className="text-[12px] text-[--text-secondary] mb-4">ZK proof generated in browser</p>
+                <div className="text-[11px] font-mono text-white/40 leading-relaxed space-y-0.5">
+                  <div>Sender <span className="text-emerald-400">hidden</span></div>
+                  <div>Amount <span className="text-emerald-400">hidden</span></div>
+                  <div>Recipient <span className="text-emerald-400">hidden</span></div>
+                </div>
+                {/* ZK shimmer effect */}
+                {privacy.visible && (
+                  <div className="mt-3 h-px w-full overflow-hidden rounded">
+                    <div className="h-full bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" style={{
+                      animation: 'zkShimmer 2.5s ease-in-out infinite',
+                    }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Arrow 2→3 */}
+              <div className={`hidden md:flex items-center justify-center transition-all duration-500 ${
+                privacy.visible ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'
+              }`} style={{ transitionDelay: '1200ms' }}>
+                <div className="flex items-center gap-1">
+                  <div className="h-px w-8 bg-gradient-to-r from-emerald-500/40 to-[#836EF9]/40" style={{
+                    animation: privacy.visible ? 'flowPulse 2s ease-in-out 0.5s infinite' : 'none',
+                  }} />
+                  <div className="text-[#836EF9]/60 text-lg font-mono">&rarr;</div>
+                </div>
+              </div>
+
+              {/* Step 3: Trade Executed */}
+              <div className={`border border-[#836EF9]/20 p-5 bg-black transition-all duration-700 ${
+                privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`} style={{ transitionDelay: '1400ms' }}>
+                <span className="text-[11px] font-mono text-[#836EF9] block mb-2">STEP 3</span>
+                <h4 className="text-[15px] font-bold mb-1">Trade Executed</h4>
+                <p className="text-[12px] text-[--text-secondary] mb-4">Polymarket CLOB via server</p>
+                <div className="text-[11px] font-mono text-white/40 leading-relaxed space-y-0.5">
+                  <div>Different address</div>
+                  <div>No link to deposit</div>
+                  <div className="text-[#836EF9]/80">Identity protected</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Privacy matrix */}
+            <div className="mt-10 border border-[--border]">
+              <div className="px-5 py-3 border-b border-[--border] flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                <span className="text-[11px] text-[--text-secondary] tracking-wide">Unlink Privacy Matrix — what the blockchain sees</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="border-b border-[--border]">
+                      <th className="px-5 py-3 text-left text-[--text-secondary] font-normal">Operation</th>
+                      <th className="px-5 py-3 text-left text-[--text-secondary] font-normal">Amount</th>
+                      <th className="px-5 py-3 text-left text-[--text-secondary] font-normal">Sender</th>
+                      <th className="px-5 py-3 text-left text-[--text-secondary] font-normal">Recipient</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-[--border]">
+                      <td className="px-5 py-3 text-white/80 font-mono">Deposit</td>
+                      <td className="px-5 py-3 text-amber-400 font-mono">Visible</td>
+                      <td className="px-5 py-3 text-amber-400 font-mono">Visible</td>
+                      <td className="px-5 py-3 text-emerald-400 font-mono">Hidden</td>
+                    </tr>
+                    <tr className="border-b border-[--border]">
+                      <td className="px-5 py-3 text-white/80 font-mono">Transfer</td>
+                      <td className="px-5 py-3 text-emerald-400 font-mono">Hidden</td>
+                      <td className="px-5 py-3 text-emerald-400 font-mono">Hidden</td>
+                      <td className="px-5 py-3 text-emerald-400 font-mono">Hidden</td>
+                    </tr>
+                    <tr>
+                      <td className="px-5 py-3 text-white/80 font-mono">Withdraw</td>
+                      <td className="px-5 py-3 text-amber-400 font-mono">Visible</td>
+                      <td className="px-5 py-3 text-emerald-400 font-mono">Hidden</td>
+                      <td className="px-5 py-3 text-amber-400 font-mono">Visible</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <p className="text-[12px] text-[--text-tertiary] mt-4 font-mono">
+              Deposit tx and withdrawal tx are cryptographically unlinkable. Verified by ZK proofs on Monad.
+            </p>
           </div>
         </div>
       </section>
@@ -444,13 +592,13 @@ export default function BetWhisperLanding() {
       <section className="grid-dashed">
         <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-32 text-center">
           <p className="text-[14px] text-[--text-secondary] mb-4">
-            Now you know who&apos;s on the other side.
+            Your trades. Your identity. Protected by math.
           </p>
           <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-bold tracking-tight mb-3">
-            Your agent.
+            Trade privately. Know the crowd.
           </h2>
           <p className="text-[15px] text-[--text-secondary] max-w-sm mx-auto mb-8">
-            Name yours. Start whispering.
+            Name your agent. Start whispering.
           </p>
           <Link
             href="/predict"
@@ -468,7 +616,7 @@ export default function BetWhisperLanding() {
             <div className="w-4 h-4 border border-white/20 flex items-center justify-center">
               <span className="text-[7px] font-bold">BW</span>
             </div>
-            <span className="text-[12px] text-white/30">BetWhisper — the social experience agent for prediction markets</span>
+            <span className="text-[12px] text-white/30">BetWhisper — the first private social agent layer for prediction markets</span>
           </div>
           <div className="flex items-center gap-4">
             <a

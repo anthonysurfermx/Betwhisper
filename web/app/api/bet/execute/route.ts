@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeClobBet, getUSDCBalance } from '@/lib/polymarket-clob'
 import { verifyMonadPayment } from '@/lib/monad-bet'
 import { verifyUnlinkTransfer } from '@/lib/unlink-server'
+import { MON_TOKEN } from '@/lib/constants'
 import { MAX_BET_USD, POLYGON_EXPLORER, DAILY_SPEND_LIMIT_USD, PAYMENT_TOLERANCE, RATE_LIMIT_PER_MINUTE } from '@/lib/constants'
 import { sql } from '@/lib/db'
 import { pulseBroadcaster } from '@/lib/pulse-broadcast'
@@ -44,7 +45,7 @@ async function ensureOrdersTable() {
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_mon_amount NUMERIC DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_attempted_at TIMESTAMP DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_error TEXT DEFAULT NULL`,
-    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS unlink_relay_id TEXT DEFAULT NULL`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS unlink_tx_hash TEXT DEFAULT NULL`,
     sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS execution_mode TEXT DEFAULT 'direct'`,
     sql`CREATE INDEX IF NOT EXISTS idx_orders_wallet_status ON orders(wallet_address, status)`,
     sql`CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at)`,
@@ -153,27 +154,27 @@ export async function POST(request: NextRequest) {
   }
 
   // Determine execution mode: Unlink private transfer OR direct MON payment
-  const { unlinkRelayId, executionMode } = body
-  const isUnlinkPath = executionMode === 'unlink' && unlinkRelayId
+  const { unlinkTxHash, unlinkAmount, executionMode } = body
+  const isUnlinkPath = executionMode === 'unlink' && unlinkTxHash
 
   // Require payment proof for real execution
   if (!isUnlinkPath && !monadTxHash) {
-    return NextResponse.json({ error: 'Missing monadTxHash or unlinkRelayId: payment required before execution' }, { status: 400 })
+    return NextResponse.json({ error: 'Missing monadTxHash or unlinkTxHash: payment required before execution' }, { status: 400 })
   }
 
   const { side: clientSide } = body
   const side = clientSide || (outcomeIndex === 0 ? 'Yes' : 'No')
   let verifiedAmountUSD = amount
   let walletForRateLimit = (body.walletAddress || '').toLowerCase()
-  const orderKey = isUnlinkPath ? unlinkRelayId : monadTxHash
+  const orderKey = isUnlinkPath ? unlinkTxHash : monadTxHash
 
   if (isUnlinkPath) {
     // ─── UNLINK PRIVACY PATH ───
-    console.log(`[Unlink] Verifying private transfer: ${unlinkRelayId}`)
+    console.log(`[Unlink] Verifying private transfer: txHash=${unlinkTxHash}`)
 
-    // REPLAY PROTECTION: Check if this relayId was already used
+    // REPLAY PROTECTION: Check if this txHash was already used (UNIQUE INDEX enforced in DB)
     const existing = await sql`
-      SELECT id, status, polygon_tx_hash FROM orders WHERE unlink_relay_id = ${unlinkRelayId} LIMIT 1
+      SELECT id, status, polygon_tx_hash FROM orders WHERE unlink_tx_hash = ${unlinkTxHash} LIMIT 1
     `
     if (existing.length > 0) {
       const order = existing[0]
@@ -191,25 +192,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify the private transfer was confirmed on Unlink relay
+    // Verify the private transfer via getNotes() — Ainur confirmed relayId doesn't work cross-wallet
+    // Server syncs wallet, lists received notes, and matches by txHash + amount + token
     try {
-      const txStatus = await verifyUnlinkTransfer(unlinkRelayId)
-      if (txStatus.state !== 'succeeded') {
+      const parsedAmount = unlinkAmount ? BigInt(Math.floor(parseFloat(unlinkAmount) * 1e18)) : BigInt(Math.floor(amount * 1e18))
+      const { verified } = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, MON_TOKEN)
+      if (!verified) {
         return NextResponse.json({
-          error: `Private transfer not confirmed: ${txStatus.state}`,
+          error: 'Private transfer not found in server wallet notes',
         }, { status: 400 })
       }
-      console.log(`[Unlink] Transfer confirmed: ${txStatus.txHash || 'relay-only'}`)
+      console.log(`[Unlink] Transfer verified via getNotes(): txHash=${unlinkTxHash}`)
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Transfer verification failed'
       console.error('[Unlink] Verification error:', errMsg)
       return NextResponse.json({ error: errMsg }, { status: 408 })
     }
 
-    // Insert order as PENDING with Unlink relay ID
+    // Insert order as PENDING with Unlink txHash
     await sql`
-      INSERT INTO orders (monad_tx_hash, unlink_relay_id, execution_mode, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, status)
-      VALUES (${unlinkRelayId}, ${unlinkRelayId}, 'unlink', ${walletForRateLimit}, ${marketSlug}, ${conditionId}, ${side},
+      INSERT INTO orders (monad_tx_hash, unlink_tx_hash, execution_mode, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, status)
+      VALUES (${unlinkTxHash}, ${unlinkTxHash}, 'unlink', ${walletForRateLimit}, ${marketSlug}, ${conditionId}, ${side},
               ${amount}, ${amount}, 'pending')
     `
   } else {
@@ -325,7 +328,7 @@ export async function POST(request: NextRequest) {
       amountUSD: result.amountUSD,
       explorerUrl: result.explorerUrl,
       monadTxHash: monadTxHash || null,
-      unlinkRelayId: unlinkRelayId || null,
+      unlinkTxHash: unlinkTxHash || null,
       executionMode: isUnlinkPath ? 'unlink' : 'direct',
       marketSlug,
       side,

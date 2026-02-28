@@ -2,8 +2,8 @@
 // Uses memory storage (Vercel serverless has no persistent filesystem)
 // Mnemonic stored in UNLINK_SERVER_MNEMONIC env var — wallet reconstructed on cold start
 
-import { initWallet, waitForConfirmation, type TxStatus, type UnlinkWallet } from '@unlink-xyz/node'
-import { MON_TOKEN, UNLINK_TRANSFER_TIMEOUT_MS } from './constants'
+import { initWallet, type UnlinkWallet } from '@unlink-xyz/node'
+import { MON_TOKEN } from './constants'
 
 let serverWallet: UnlinkWallet | null = null
 
@@ -38,27 +38,50 @@ export async function getServerUnlinkAddress(): Promise<string> {
   return account.address // Account type includes `address: string` (bech32m unlink1...)
 }
 
-// Verify a specific relay transaction by ID — NOT balance check (prevents race conditions)
-// Returns TxStatus with state 'succeeded' on success, throws on failure/timeout
-export async function verifyUnlinkTransfer(relayId: string): Promise<TxStatus> {
+// Verify a private transfer by checking received notes (getNotes)
+// Ainur confirmed: relayId is internal and can't be used cross-wallet.
+// Instead, the client sends txHash + amount + token, and the server
+// syncs its wallet, lists received notes, and matches by those fields.
+export async function verifyUnlinkTransfer(
+  txHash: string,
+  expectedAmount: bigint,
+  token: string = MON_TOKEN,
+): Promise<{ verified: boolean; note?: unknown }> {
   const wallet = await getServerUnlinkWallet()
   await wallet.sync()
 
-  // Quick check: RelayStatusResponse { id, state, txHash, receipt, error }
-  const status = await wallet.getTxStatus(relayId)
-  if (status.state === 'succeeded') {
-    return {
-      txId: relayId,
-      state: status.state,
-      txHash: status.txHash ?? undefined,
-    }
+  const notes = await wallet.getNotes()
+
+  // Find a note matching the txHash, amount, and token
+  const match = notes.find((n: { txHash?: string; amount?: bigint; token?: string }) =>
+    n.txHash === txHash &&
+    n.amount === expectedAmount &&
+    n.token?.toLowerCase() === token.toLowerCase()
+  )
+
+  if (match) {
+    console.log(`[Unlink] Transfer verified: txHash=${txHash}`)
+    return { verified: true, note: match }
   }
 
-  // Not yet confirmed — poll until terminal state (throws TimeoutError or TransactionFailedError)
-  return waitForConfirmation(wallet, relayId, {
-    timeout: UNLINK_TRANSFER_TIMEOUT_MS,
-    pollInterval: 2000,
-  })
+  // Retry once after a short delay (sync latency ~2s per Ainur)
+  await new Promise(r => setTimeout(r, 3000))
+  await wallet.sync()
+
+  const retryNotes = await wallet.getNotes()
+  const retryMatch = retryNotes.find((n: { txHash?: string; amount?: bigint; token?: string }) =>
+    n.txHash === txHash &&
+    n.amount === expectedAmount &&
+    n.token?.toLowerCase() === token.toLowerCase()
+  )
+
+  if (retryMatch) {
+    console.log(`[Unlink] Transfer verified on retry: txHash=${txHash}`)
+    return { verified: true, note: retryMatch }
+  }
+
+  console.warn(`[Unlink] Transfer NOT found: txHash=${txHash}`)
+  return { verified: false }
 }
 
 // Withdraw MON from privacy pool to server's public EOA

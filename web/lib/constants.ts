@@ -48,8 +48,18 @@ export const MIN_SMART_WALLETS_FOR_SIGNAL = 2
 export const CONVICTION_CAP = 3.0
 
 // Unlink Privacy Pool (Monad Testnet)
+// Pool address auto-fetched by SDK from https://config.unlink.xyz/networks.json
 export const UNLINK_POOL = '0x0813da0a10328e5ed617d37e514ac2f6fa49a254'
 export const UNLINK_GATEWAY = 'https://api.unlink.xyz'
+export const UNLINK_FROST = 'https://frost-production.up.railway.app'
 export const MONAD_TESTNET_CHAIN_ID = 10143
 export const MON_TOKEN = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 export const UNLINK_TRANSFER_TIMEOUT_MS = 30_000 // Max wait for private transfer confirmation
+
+// Unlink-supported tokens on Monad Testnet (from config.unlink.xyz)
+export const UNLINK_USDC = '0xc4fb617e4e4cfbdeb07216dff62b4e46a2d6fdf6'
+export const UNLINK_USDT = '0x86b6341d3c56bc379697d247fc080f5f2c8eed7b'
+export const UNLINK_ULNK = '0xaaa4e95d4da878baf8e10745fdf26e196918df6b'
+
+// Unlink DeFi Adapter (for private swaps inside the pool)
+export const UNLINK_ADAPTER = '0xf1855BCD3100A99413FA05edB1BDFca9d2d98265'
