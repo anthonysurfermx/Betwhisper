@@ -4,6 +4,7 @@ import { verifyMonadPayment } from '@/lib/monad-bet'
 import { verifyUnlinkTransfer } from '@/lib/unlink-server'
 import { MAX_BET_USD, POLYGON_EXPLORER, DAILY_SPEND_LIMIT_USD, PAYMENT_TOLERANCE, RATE_LIMIT_PER_MINUTE } from '@/lib/constants'
 import { sql } from '@/lib/db'
+import { pulseBroadcaster } from '@/lib/pulse-broadcast'
 
 // Auto-create orders table (replay protection + order tracking + refund tracking)
 let ordersTableCreated = false
@@ -111,6 +112,13 @@ export async function POST(request: NextRequest) {
       INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash)
       VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${lat}, ${lng}, ${tsBucket}, ${walletHash})
     `.catch((e: unknown) => console.error('[Pulse] Failed to save trade:', e instanceof Error ? e.message : e))
+
+    // Broadcast to all connected SSE clients — instant heatmap update
+    pulseBroadcaster.broadcast({
+      lat: parseFloat(lat), lng: parseFloat(lng),
+      side: pulseSide, amountBucket: bucket,
+      conditionId, timestamp: Date.now(),
+    })
   }
 
   // Mock mode (panic button for demo) — v2: returns tokenId/tickSize/negRisk

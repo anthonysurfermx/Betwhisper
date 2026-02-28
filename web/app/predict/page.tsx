@@ -3033,11 +3033,18 @@ export default function PredictChat() {
     if (marketParam) {
       sessionStorage.setItem('bw_pulse_market', marketParam)
     }
-    // Read lat/lng from Pulse trade buttons
+    // Read lat/lng from Pulse trade buttons (URL params)
     const lat = params.get('lat')
     const lng = params.get('lng')
     if (lat && lng) {
       setPulseGeo({ lat: parseFloat(lat), lng: parseFloat(lng) })
+    } else {
+      // Auto-capture GPS for heatmap — no URL params needed
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => setPulseGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {}, // silently fail if denied
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+      )
     }
     // Clean URL params
     window.history.replaceState({}, '', window.location.pathname)

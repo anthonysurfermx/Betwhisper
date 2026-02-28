@@ -7,6 +7,7 @@ import {
   Users, Activity, Radio, MapPin
 } from 'lucide-react'
 import Link from 'next/link'
+import { usePulseStream } from '@/hooks/use-pulse-stream'
 
 // ─── Mapbox GL (dynamic import to avoid SSR) ──────────
 
@@ -226,7 +227,7 @@ function PulsePrivacyBadge() {
 
 // ─── Stats Panel ───────────────────────────────────────
 
-function PulseStatsPanel({ stats }: { stats: PulseStats | null }) {
+function PulseStatsPanel({ stats, sseConnected, liveTradeCount }: { stats: PulseStats | null; sseConnected?: boolean; liveTradeCount?: number }) {
   if (!stats) return null
 
   const isSpiking = stats.spikeIndicator > 2.0
@@ -237,8 +238,14 @@ function PulseStatsPanel({ stats }: { stats: PulseStats | null }) {
         {/* Top row */}
         <div className="flex items-start justify-between mb-3">
           <div>
-            <div className="text-[9px] font-mono tracking-[2px] text-white/25 mb-0.5">
-              PULSE MARKET
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[9px] font-mono tracking-[2px] text-white/25">PULSE MARKET</span>
+              {sseConnected && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 animate-pulse" />
+                  <span className="text-[8px] font-mono text-emerald-500 tracking-[1px]">LIVE</span>
+                </span>
+              )}
             </div>
             <div className="text-[17px] md:text-[20px] font-bold tracking-tight text-white">
               {stats.marketName}
@@ -392,6 +399,28 @@ export default function PulsePage() {
   const [scanActive, setScanActive] = useState(false)
   const prevPointCount = useRef(0)
   const mapInstanceRef = useRef<mapboxgl.Map | null>(null)
+
+  // Real-time SSE stream — instant updates without polling
+  const { lastTrade, connected: sseConnected, tradeCount: liveTradeCount } = usePulseStream(true)
+
+  // Inject SSE trades into the heatmap instantly
+  useEffect(() => {
+    if (!lastTrade) return
+    const AMOUNT_MIDPOINT: Record<string, number> = { '1-10': 5, '10-50': 30, '50-100': 75, '100+': 150 }
+    const midpoint = AMOUNT_MIDPOINT[lastTrade.amountBucket] || 5
+    const newPoint: HeatmapPoint = {
+      lat: lastTrade.lat,
+      lng: lastTrade.lng,
+      intensity: Math.min(0.3 + (midpoint / 200), 1.0),
+      side: lastTrade.side,
+      timestamp: lastTrade.timestamp,
+    }
+    setPoints(prev => [newPoint, ...prev].slice(0, 500))
+    // Trigger scan animation
+    setScanActive(true)
+    const timer = setTimeout(() => setScanActive(false), 2000)
+    return () => clearTimeout(timer)
+  }, [lastTrade])
 
   // ── User geolocation ──
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -548,7 +577,7 @@ export default function PulsePage() {
               connect={connect}
               userLocation={userLocation}
             />
-            <PulseStatsPanel stats={stats} />
+            <PulseStatsPanel stats={stats} sseConnected={sseConnected} liveTradeCount={liveTradeCount} />
 
             {/* Top-right: signal counter + geo status */}
             <div className="absolute top-16 right-3 md:right-6 z-20 flex flex-col gap-2 items-end">

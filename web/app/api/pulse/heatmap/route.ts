@@ -97,6 +97,28 @@ function generateMockStats(): PulseStats {
   }
 }
 
+// ─── Ensure table exists ─────────────────────────────────
+
+let tableReady = false
+async function ensurePulseTable() {
+  if (tableReady) return
+  await sql`
+    CREATE TABLE IF NOT EXISTS pulse_trades (
+      id SERIAL PRIMARY KEY,
+      condition_id TEXT NOT NULL,
+      side TEXT NOT NULL,
+      amount_bucket TEXT NOT NULL,
+      lat NUMERIC NOT NULL,
+      lng NUMERIC NOT NULL,
+      timestamp_bucket BIGINT NOT NULL,
+      wallet_hash TEXT NOT NULL DEFAULT 'anon',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_pulse_condition_ts ON pulse_trades(condition_id, timestamp_bucket)`.catch(() => {})
+  tableReady = true
+}
+
 // ─── DB → Real Data ─────────────────────────────────────
 
 const AMOUNT_MIDPOINT: Record<string, number> = {
@@ -198,7 +220,8 @@ async function fetchRealData(conditionId?: string): Promise<{
 export async function GET(request: NextRequest) {
   const conditionId = request.nextUrl.searchParams.get('conditionId') || undefined
 
-  // Try real DB data first
+  // Ensure table exists, then try real DB data
+  await ensurePulseTable()
   const real = await fetchRealData(conditionId)
 
   if (real) {
