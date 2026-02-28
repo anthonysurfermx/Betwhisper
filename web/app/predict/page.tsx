@@ -2955,7 +2955,7 @@ export default function PredictChat() {
   const { address, isConnected, connect, disconnect, signer } = useWeb3()
 
   // Unlink privacy wallet
-  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation } = useUnlink()
+  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, refresh: unlinkRefresh } = useUnlink()
   const { execute: unlinkDeposit } = useDeposit()
   const { execute: unlinkTransfer } = useTransfer()
   const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
@@ -3366,8 +3366,12 @@ export default function PredictChat() {
     const timelineId = addMessage('assistant', '', { type: 'betTimeline', steps: [...steps], side, amount, market })
     const updateTimeline = (s: BetTimelineStep[]) => updateMessage(timelineId, { type: 'betTimeline', steps: [...s], side, amount, market })
 
-    // Step 1: Private transfer (deposit already in pool)
+    // Step 1: Private transfer (deposit already in pool — refresh balance first)
     steps[0].status = 'processing'
+    steps[0].detail = lang === 'es' ? 'Sincronizando balance...' : 'Syncing balance...'
+    updateTimeline(steps)
+    await unlinkRefresh()
+
     steps[0].detail = lang === 'es' ? 'Generando prueba ZK...' : 'Generating ZK proof...'
     updateTimeline(steps)
 
@@ -3529,6 +3533,15 @@ export default function PredictChat() {
           amount: monAmountWei,
           depositor: address!,
         }])
+
+        // Wait for deposit to be confirmed on-chain before proceeding
+        steps[0].detail = lang === 'es' ? 'Confirmando depósito...' : 'Confirming deposit...'
+        updateTimeline(steps)
+        await waitForConfirmation(depositResult.relayId, { timeout: 120_000 })
+
+        // Refresh wallet to sync the new balance from the pool
+        await unlinkRefresh()
+
         steps[0].status = 'confirmed'
         steps[0].detail = `${monAmount} MON → Privacy Pool`
         updateTimeline(steps)
