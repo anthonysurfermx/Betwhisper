@@ -108,14 +108,20 @@ export async function POST(request: NextRequest) {
     const bucket = amount < 10 ? '1-10' : amount < 50 ? '10-50' : amount < 100 ? '50-100' : '100+'
     const tsBucket = Math.floor(Date.now() / 60000) * 60000 // 60s window for privacy
     const walletHash = (body.walletAddress || '').slice(0, 10) || 'anon'
+
+    // Privacy: fuzzy location by ~80m random offset (server-side, never store exact GPS)
+    // 0.0007° latitude ≈ 78m, 0.0009° longitude ≈ 75m at NYC latitude
+    const fuzzLat = parseFloat(lat) + (Math.random() - 0.5) * 0.0014
+    const fuzzLng = parseFloat(lng) + (Math.random() - 0.5) * 0.0018
+
     sql`
       INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash)
-      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${lat}, ${lng}, ${tsBucket}, ${walletHash})
+      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${fuzzLat}, ${fuzzLng}, ${tsBucket}, ${walletHash})
     `.catch((e: unknown) => console.error('[Pulse] Failed to save trade:', e instanceof Error ? e.message : e))
 
-    // Broadcast to all connected SSE clients — instant heatmap update
+    // Broadcast to all connected SSE clients — instant heatmap update (fuzzed location)
     pulseBroadcaster.broadcast({
-      lat: parseFloat(lat), lng: parseFloat(lng),
+      lat: fuzzLat, lng: fuzzLng,
       side: pulseSide, amountBucket: bucket,
       conditionId, timestamp: Date.now(),
     })
