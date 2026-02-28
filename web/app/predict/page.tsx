@@ -3535,15 +3535,35 @@ export default function PredictChat() {
         }])
 
         // confirmDeposit: waits for commitments to be indexed AND updates local wallet state
-        // This is the SDK's official way to sync deposit notes — refresh/forceResync alone isn't enough
+        // Retry up to 3 times — testnet indexer can be slow
         steps[0].detail = lang === 'es' ? 'Confirmando depósito...' : 'Confirming deposit...'
         updateTimeline(steps)
-        if (unlinkWallet) {
-          await unlinkWallet.confirmDeposit(depositResult.relayId)
-        } else {
-          // Fallback: generic wait + resync
-          await waitForConfirmation(depositResult.relayId, { timeout: 120_000 })
-          await unlinkForceResync()
+        let depositConfirmed = false
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            if (unlinkWallet) {
+              await unlinkWallet.confirmDeposit(depositResult.relayId)
+            } else {
+              await waitForConfirmation(depositResult.relayId, { timeout: 60_000 })
+              await unlinkForceResync()
+            }
+            depositConfirmed = true
+            break
+          } catch (confirmErr) {
+            const msg = confirmErr instanceof Error ? confirmErr.message : ''
+            if (attempt < 3 && msg.includes('not found before timeout')) {
+              steps[0].detail = lang === 'es'
+                ? `Indexer lento, reintentando (${attempt}/3)...`
+                : `Indexer slow, retrying (${attempt}/3)...`
+              updateTimeline(steps)
+              await new Promise(r => setTimeout(r, 5000))
+              continue
+            }
+            throw confirmErr
+          }
+        }
+        if (!depositConfirmed) {
+          throw new Error('Deposit commitment not indexed after 3 attempts')
         }
 
         steps[0].status = 'confirmed'
