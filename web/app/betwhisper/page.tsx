@@ -83,7 +83,7 @@ function ConversationDemo() {
   const name = ASSISTANT_NAMES[nameIdx]
 
   const lines = [
-    { who: 'user', text: `${name}, bet $5 on Lakers` },
+    { who: 'user', text: `${name}, $5 on Lakers` },
     { who: 'agent', text: '2 bots filtered. Smart money says YES at 78%.', tag: 'PROTECTS' },
     { who: 'agent', text: '12 traders near MSG went Lakers.', tag: 'CONNECTS' },
     { who: 'agent', text: 'Done. 23.8 shares. Deposit and trade are unlinkable.', tag: 'SIMPLIFIES' },
@@ -191,7 +191,7 @@ export default function BetWhisperLanding() {
             }`}>
               Who&apos;s really on the
               <br />
-              other side of your bet?
+              other side of your trade?
             </h1>
 
             {/* The answer — your agent */}
@@ -264,7 +264,7 @@ export default function BetWhisperLanding() {
           <div className="grid md:grid-cols-3">
             {[
               { label: 'Manipulated', desc: 'Bots inflate odds. You can\'t tell real sentiment from manufactured consensus.' },
-              { label: 'Isolated', desc: 'You bet alone. No idea what people around you think about the same market.' },
+              { label: 'Isolated', desc: 'You trade alone. No idea what people around you think about the same market.' },
               { label: 'Exposed', desc: 'Every trade is public. Your wallet, your position, your identity — all on-chain.' },
             ].map((item, i) => (
               <div
@@ -296,7 +296,7 @@ export default function BetWhisperLanding() {
             <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-md transition-all duration-700 delay-100 ${
               solution.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              Your agent protects, connects, and simplifies — so you bet with clarity, not blindness.
+              Your agent protects, connects, and simplifies — so you trade with clarity, not blindness.
             </p>
           </div>
 
@@ -311,7 +311,7 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">Filters bots. Hides your identity.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Agent Radar scans every holder and flags bots before you bet. Unlink breaks the on-chain link between your deposit and your trade with ZK proofs.
+                Agent Radar scans every holder and flags bots before you trade. Unlink breaks the on-chain link between your deposit and your position with ZK proofs.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
@@ -339,7 +339,7 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">Shows you the crowd around you.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Social Map is a live heatmap of what people near you are betting. Opt-in only — activate with PIN + Face ID. Your exact location is never shared.
+                Social Map is a live heatmap of what people near you are trading. Opt-in only — activate with PIN + Face ID. Your exact location is never shared.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
@@ -367,7 +367,7 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">One message. Two chains. Done.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Tell your agent what to bet. It handles MON payment on Monad, order execution on Polymarket, and cashout back to MON. Text, voice, or smart glasses.
+                Tell your agent what to trade. It handles MON payment on Monad, order execution on Polymarket, and cashout back to MON. Text, voice, or smart glasses.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
@@ -395,7 +395,7 @@ export default function BetWhisperLanding() {
             <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
               howItWorks.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              Ask. Scan. Bet. Track.
+              Ask. Scan. Trade. Track.
             </h2>
           </div>
 
@@ -403,7 +403,7 @@ export default function BetWhisperLanding() {
             {[
               { num: '01', title: 'Ask', desc: 'Search any market. Sports, crypto, politics.' },
               { num: '02', title: 'Scan', desc: 'Agent Radar filters bots and surfaces smart money.' },
-              { num: '03', title: 'Bet', desc: 'Pay with MON. Trade executes via ZK privacy pool.' },
+              { num: '03', title: 'Trade', desc: 'Pay with MON. Order executes via ZK privacy pool.' },
               { num: '04', title: 'Track', desc: 'Live P&L + local heatmap. Sell anytime.' },
             ].map((s, i) => (
               <div
