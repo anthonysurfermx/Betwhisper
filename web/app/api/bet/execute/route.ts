@@ -170,7 +170,10 @@ export async function POST(request: NextRequest) {
 
   if (isUnlinkPath) {
     // ─── UNLINK PRIVACY PATH ───
-    console.log(`[Unlink] Verifying private transfer: txHash=${unlinkTxHash}`)
+    console.log(`[Unlink:Server] === UNLINK VERIFICATION START ===`)
+    console.log(`[Unlink:Server] txHash=${unlinkTxHash}`)
+    console.log(`[Unlink:Server] amount=${amount}, unlinkAmount=${unlinkAmount}`)
+    console.log(`[Unlink:Server] market=${marketSlug}, side=${side}`)
 
     // REPLAY PROTECTION: Check if this txHash was already used (UNIQUE INDEX enforced in DB)
     const existing = await sql`
@@ -178,6 +181,7 @@ export async function POST(request: NextRequest) {
     `
     if (existing.length > 0) {
       const order = existing[0]
+      console.log(`[Unlink:Server] Replay check: found existing order id=${order.id} status=${order.status}`)
       if (order.status === 'success') {
         return NextResponse.json({
           error: 'This private transfer was already used',
@@ -188,33 +192,41 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'This transfer is already being processed' }, { status: 409 })
       }
       if (order.status === 'clob_failed') {
+        console.log(`[Unlink:Server] Removing failed order id=${order.id} for retry`)
         await sql`DELETE FROM orders WHERE id = ${order.id}`
       }
+    } else {
+      console.log(`[Unlink:Server] Replay check: no existing order (OK)`)
     }
 
     // Verify the private transfer via getNotes() — Ainur confirmed relayId doesn't work cross-wallet
     // Server syncs wallet, lists received notes, and matches by txHash + amount + token
     try {
       const parsedAmount = unlinkAmount ? BigInt(Math.floor(parseFloat(unlinkAmount) * 1e18)) : BigInt(Math.floor(amount * 1e18))
+      console.log(`[Unlink:Server] Verifying transfer: parsedAmount=${parsedAmount.toString()}, token=${MON_TOKEN}`)
       const { verified } = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, MON_TOKEN)
       if (!verified) {
+        console.error(`[Unlink:Server] Transfer NOT verified — not found in server wallet notes`)
         return NextResponse.json({
           error: 'Private transfer not found in server wallet notes',
         }, { status: 400 })
       }
-      console.log(`[Unlink] Transfer verified via getNotes(): txHash=${unlinkTxHash}`)
+      console.log(`[Unlink:Server] Transfer VERIFIED via getNotes(): txHash=${unlinkTxHash}`)
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Transfer verification failed'
-      console.error('[Unlink] Verification error:', errMsg)
+      console.error(`[Unlink:Server] Verification ERROR: ${errMsg}`)
+      console.error(`[Unlink:Server] Full error:`, err)
       return NextResponse.json({ error: errMsg }, { status: 408 })
     }
 
     // Insert order as PENDING with Unlink txHash
+    console.log(`[Unlink:Server] Inserting pending order...`)
     await sql`
       INSERT INTO orders (monad_tx_hash, unlink_tx_hash, execution_mode, wallet_address, market_slug, condition_id, side, amount_usd, verified_amount_usd, status)
       VALUES (${unlinkTxHash}, ${unlinkTxHash}, 'unlink', ${walletForRateLimit}, ${marketSlug}, ${conditionId}, ${side},
               ${amount}, ${amount}, 'pending')
     `
+    console.log(`[Unlink:Server] Order inserted, proceeding to CLOB execution...`)
   } else {
     // ─── DIRECT MON PAYMENT PATH (existing flow) ───
 

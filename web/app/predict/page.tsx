@@ -3528,6 +3528,14 @@ export default function PredictChat() {
       updateTimeline(steps)
 
       try {
+        console.log('[Unlink:Deposit] Starting deposit flow', {
+          token: MON_TOKEN,
+          amount: monAmountWei.toString(),
+          depositor: address,
+          monPriceUSD,
+          amountUSD: amount,
+        })
+
         // Step 1a: Prepare deposit (generates calldata but does NOT send on-chain)
         const depositResult = await unlinkDeposit([{
           token: MON_TOKEN,
@@ -3535,16 +3543,30 @@ export default function PredictChat() {
           depositor: address!,
         }])
 
+        console.log('[Unlink:Deposit] SDK returned calldata', {
+          relayId: depositResult.relayId,
+          to: depositResult.to,
+          calldataLen: depositResult.calldata?.length,
+          value: depositResult.value?.toString(),
+        })
+
         // Step 1b: Submit the deposit tx on-chain via user's connected wallet
         // The SDK only prepares calldata — we must send it ourselves
         steps[0].detail = lang === 'es' ? 'Firmando transacción...' : 'Signing transaction...'
         updateTimeline(steps)
+        console.log('[Unlink:Deposit] Submitting tx on-chain via signer...')
         const depositTx = await signer.sendTransaction({
           to: depositResult.to,
           data: depositResult.calldata,
           value: depositResult.value,
         })
-        await depositTx.wait()
+        console.log('[Unlink:Deposit] Tx sent, waiting for receipt...', { txHash: depositTx.hash })
+        const depositReceipt = await depositTx.wait()
+        console.log('[Unlink:Deposit] Tx confirmed on-chain', {
+          txHash: depositTx.hash,
+          blockNumber: depositReceipt?.blockNumber,
+          status: depositReceipt?.status,
+        })
 
         // confirmDeposit: waits for commitments to be indexed AND updates local wallet state
         // Retry up to 3 times — testnet indexer can be slow
@@ -3553,6 +3575,7 @@ export default function PredictChat() {
         let depositConfirmed = false
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
+            console.log(`[Unlink:Deposit] confirmDeposit attempt ${attempt}/3, relayId=${depositResult.relayId}`)
             if (unlinkWallet) {
               await unlinkWallet.confirmDeposit(depositResult.relayId)
             } else {
@@ -3560,9 +3583,11 @@ export default function PredictChat() {
               await unlinkForceResync()
             }
             depositConfirmed = true
+            console.log('[Unlink:Deposit] confirmDeposit SUCCESS')
             break
           } catch (confirmErr) {
             const msg = confirmErr instanceof Error ? confirmErr.message : ''
+            console.warn(`[Unlink:Deposit] confirmDeposit attempt ${attempt} failed:`, msg)
             if (attempt < 3 && msg.includes('not found before timeout')) {
               steps[0].detail = lang === 'es'
                 ? `Indexer lento, reintentando (${attempt}/3)...`
@@ -3578,6 +3603,16 @@ export default function PredictChat() {
           throw new Error('Deposit commitment not indexed after 3 attempts')
         }
 
+        // Check balance after deposit
+        if (unlinkWallet) {
+          try {
+            const balAfterDeposit = await unlinkWallet.getBalance(MON_TOKEN)
+            console.log('[Unlink:Deposit] Balance after deposit:', balAfterDeposit.toString())
+          } catch (e) {
+            console.warn('[Unlink:Deposit] Balance check failed:', e)
+          }
+        }
+
         steps[0].status = 'confirmed'
         steps[0].detail = `${monAmount} MON → Privacy Pool`
         updateTimeline(steps)
@@ -3590,6 +3625,7 @@ export default function PredictChat() {
           }))
         } catch {}
       } catch (err) {
+        console.error('[Unlink:Deposit] FAILED:', err instanceof Error ? err.message : err)
         steps[0].status = 'error'
         steps[0].errorMsg = err instanceof Error ? err.message : 'Deposit failed'
         updateTimeline(steps)
@@ -3602,14 +3638,24 @@ export default function PredictChat() {
       updateTimeline(steps)
 
       try {
+        console.log('[Unlink:Transfer] Starting private transfer', {
+          token: MON_TOKEN,
+          recipient: serverUnlinkAddr,
+          amount: monAmountWei.toString(),
+        })
         const transferResult = await unlinkTransfer([{
           token: MON_TOKEN,
           recipient: serverUnlinkAddr,
           amount: monAmountWei,
         }])
+        console.log('[Unlink:Transfer] Transfer submitted', { relayId: transferResult.relayId })
+
         // Wait for on-chain confirmation to get txHash (relayId is internal, can't verify cross-wallet)
+        console.log('[Unlink:Transfer] Waiting for on-chain confirmation...')
         const confirmed = await waitForConfirmation(transferResult.relayId, { timeout: 30_000 })
         unlinkTxHash = confirmed.txHash || transferResult.relayId
+        console.log('[Unlink:Transfer] Confirmed on-chain', { txHash: unlinkTxHash })
+
         steps[1].status = 'confirmed'
         steps[1].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
         updateTimeline(steps)
@@ -3618,6 +3664,7 @@ export default function PredictChat() {
         try { localStorage.removeItem('bw_unlink_pending') } catch {}
         setUnlinkRecovery(null)
       } catch (err) {
+        console.error('[Unlink:Transfer] FAILED:', err instanceof Error ? err.message : err)
         steps[1].status = 'error'
         steps[1].errorMsg = err instanceof Error ? err.message : 'Private transfer failed'
         steps[1].detail = lang === 'es' ? 'Tus fondos están seguros en tu wallet Unlink' : 'Your funds are safe in your Unlink wallet'
