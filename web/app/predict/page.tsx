@@ -3574,13 +3574,14 @@ export default function PredictChat() {
         })
 
         // confirmDeposit: waits for commitments to be indexed AND updates local wallet state
-        // Retry up to 3 times — testnet indexer can be slow
+        // Retry up to 6 times — testnet indexer can be very slow (30s+ lag)
         steps[0].detail = lang === 'es' ? 'Confirmando depósito...' : 'Confirming deposit...'
         updateTimeline(steps)
         let depositConfirmed = false
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        const maxAttempts = 6
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
-            console.log(`[Unlink:Deposit] confirmDeposit attempt ${attempt}/3, relayId=${depositResult.relayId}`)
+            console.log(`[Unlink:Deposit] confirmDeposit attempt ${attempt}/${maxAttempts}, relayId=${depositResult.relayId}`)
             if (unlinkWallet) {
               await unlinkWallet.confirmDeposit(depositResult.relayId)
             } else {
@@ -3593,19 +3594,35 @@ export default function PredictChat() {
           } catch (confirmErr) {
             const msg = confirmErr instanceof Error ? confirmErr.message : ''
             console.warn(`[Unlink:Deposit] confirmDeposit attempt ${attempt} failed:`, msg)
-            if (attempt < 3 && msg.includes('not found before timeout')) {
+            if (attempt < maxAttempts && msg.includes('not found before timeout')) {
+              const waitSec = attempt <= 3 ? 5 : 10
               steps[0].detail = lang === 'es'
-                ? `Indexer lento, reintentando (${attempt}/3)...`
-                : `Indexer slow, retrying (${attempt}/3)...`
+                ? `Indexer lento, reintentando (${attempt}/${maxAttempts})...`
+                : `Indexer slow, retrying (${attempt}/${maxAttempts})...`
               updateTimeline(steps)
-              await new Promise(r => setTimeout(r, 5000))
+              await new Promise(r => setTimeout(r, waitSec * 1000))
               continue
+            }
+            // Final attempt: if tx was confirmed on-chain, try sync + balance as fallback
+            if (msg.includes('not found before timeout') && unlinkWallet && depositReceipt?.status === 1) {
+              console.warn('[Unlink:Deposit] confirmDeposit exhausted, trying sync+balance fallback...')
+              try {
+                await unlinkWallet.sync({ forceFullResync: true })
+                const bal = await unlinkWallet.getBalance(MON_TOKEN)
+                if (bal > BigInt(0)) {
+                  console.log(`[Unlink:Deposit] Fallback: wallet has balance ${bal.toString()}, proceeding`)
+                  depositConfirmed = true
+                  break
+                }
+              } catch (syncErr) {
+                console.error('[Unlink:Deposit] Fallback sync failed:', syncErr)
+              }
             }
             throw confirmErr
           }
         }
         if (!depositConfirmed) {
-          throw new Error('Deposit commitment not indexed after 3 attempts')
+          throw new Error('Deposit commitment not indexed after all attempts')
         }
 
         // Check balance after deposit
