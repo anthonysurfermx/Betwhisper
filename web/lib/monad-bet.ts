@@ -58,10 +58,16 @@ export async function executeBet(
     ts: Math.floor(Date.now() / 1000),
   })
 
+  // gasLimit set manually: estimateGas fails on Monad when sending data to an EOA
+  // 21000 (base) + ~16 gas per byte of calldata metadata
+  const dataBytes = toUtf8Bytes(metadata)
+  const gasLimit = 21000 + dataBytes.length * 16 + 5000 // 5k buffer
+
   const tx = await signer.sendTransaction({
     to: BETWHISPER_DEPOSIT_ADDRESS,
     value: parseEther(monAmountStr),
-    data: hexlify(toUtf8Bytes(metadata)),
+    data: hexlify(dataBytes),
+    gasLimit,
   })
 
   const receipt = await tx.wait()
