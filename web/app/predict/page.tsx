@@ -2955,7 +2955,7 @@ export default function PredictChat() {
   const { address, isConnected, connect, disconnect, signer } = useWeb3()
 
   // Unlink privacy wallet
-  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, refresh: unlinkRefresh, forceResync: unlinkForceResync, wallet: unlinkWallet } = useUnlink()
+  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, forceResync: unlinkForceResync, wallet: unlinkWallet } = useUnlink()
   const { execute: unlinkDeposit } = useDeposit()
   const { execute: unlinkTransfer } = useTransfer()
   const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
@@ -3370,7 +3370,7 @@ export default function PredictChat() {
     steps[0].status = 'processing'
     steps[0].detail = lang === 'es' ? 'Sincronizando balance...' : 'Syncing balance...'
     updateTimeline(steps)
-    await unlinkRefresh()
+    await unlinkForceResync()
 
     steps[0].detail = lang === 'es' ? 'Generando prueba ZK...' : 'Generating ZK proof...'
     updateTimeline(steps)
@@ -3534,23 +3534,16 @@ export default function PredictChat() {
           depositor: address!,
         }])
 
-        // Wait for deposit to be confirmed on-chain before proceeding
+        // confirmDeposit: waits for commitments to be indexed AND updates local wallet state
+        // This is the SDK's official way to sync deposit notes — refresh/forceResync alone isn't enough
         steps[0].detail = lang === 'es' ? 'Confirmando depósito...' : 'Confirming deposit...'
         updateTimeline(steps)
-        await waitForConfirmation(depositResult.relayId, { timeout: 120_000 })
-
-        // Poll until balance reflects the deposit (indexer can lag behind confirmation)
-        steps[0].detail = lang === 'es' ? 'Sincronizando balance...' : 'Syncing balance...'
-        updateTimeline(steps)
-        for (let syncAttempt = 0; syncAttempt < 12; syncAttempt++) {
+        if (unlinkWallet) {
+          await unlinkWallet.confirmDeposit(depositResult.relayId)
+        } else {
+          // Fallback: generic wait + resync
+          await waitForConfirmation(depositResult.relayId, { timeout: 120_000 })
           await unlinkForceResync()
-          // Read balance directly from wallet SDK (React state is stale in async closure)
-          const currentBal = unlinkWallet
-            ? await unlinkWallet.getBalance(MON_TOKEN)
-            : BigInt(0)
-          if (currentBal >= monAmountWei) break
-          // Wait 3s between retries (up to ~36s total)
-          await new Promise(r => setTimeout(r, 3000))
         }
 
         steps[0].status = 'confirmed'
