@@ -7,6 +7,7 @@ import { executeBet } from '@/lib/monad-bet'
 import { MONAD_EXPLORER, MON_TOKEN } from '@/lib/constants'
 import { useUnlink, useDeposit, useTransfer } from '@unlink-xyz/react'
 import { useLivePrices, usePriceFlash } from '@/hooks/use-live-price'
+import { SocialPulseToggle } from '@/components/social-pulse-toggle'
 import Link from 'next/link'
 import {
   Wallet, LogOut, Loader2, AlertTriangle,
@@ -3013,6 +3014,8 @@ export default function PredictChat() {
   const [autoJoinCode, setAutoJoinCode] = useState<string>('')
   // Pulse geolocation: lat/lng passed from /pulse trade buttons
   const [pulseGeo, setPulseGeo] = useState<{ lat: number; lng: number } | null>(null)
+  // Social Pulse: opt-in toggle — GPS only captured/sent when active
+  const [socialPulseActive, setSocialPulseActive] = useState(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const join = params.get('join')
@@ -3033,21 +3036,35 @@ export default function PredictChat() {
     if (marketParam) {
       sessionStorage.setItem('bw_pulse_market', marketParam)
     }
-    // Read lat/lng from Pulse trade buttons (URL params)
+    // Read lat/lng from Pulse trade buttons (URL params only — no auto GPS)
     const lat = params.get('lat')
     const lng = params.get('lng')
     if (lat && lng) {
       setPulseGeo({ lat: parseFloat(lat), lng: parseFloat(lng) })
-    } else {
-      // Auto-capture GPS for heatmap — no URL params needed
-      navigator.geolocation?.getCurrentPosition(
-        (pos) => setPulseGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => {}, // silently fail if denied
-        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
-      )
     }
+    // Restore Social Pulse state from sessionStorage
+    const savedPulse = sessionStorage.getItem('bw_social_pulse')
+    if (savedPulse === 'on') setSocialPulseActive(true)
     // Clean URL params
     window.history.replaceState({}, '', window.location.pathname)
+  }, [])
+
+  // When Social Pulse is toggled ON → capture GPS; OFF → clear it
+  const handleSocialPulseActivate = useCallback(() => {
+    setSocialPulseActive(true)
+    sessionStorage.setItem('bw_social_pulse', 'on')
+    // Capture GPS now that user explicitly opted in
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => setPulseGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {}, // silently fail if denied
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+    )
+  }, [])
+
+  const handleSocialPulseDeactivate = useCallback(() => {
+    setSocialPulseActive(false)
+    setPulseGeo(null)
+    sessionStorage.removeItem('bw_social_pulse')
   }, [])
 
   // AI Gate state
@@ -3605,7 +3622,7 @@ export default function PredictChat() {
             monPriceUSD,
             side,
             walletAddress: address,
-            ...(pulseGeo ? { lat: pulseGeo.lat, lng: pulseGeo.lng } : {}),
+            ...(socialPulseActive && pulseGeo ? { lat: pulseGeo.lat, lng: pulseGeo.lng } : {}),
             // Unlink private transfer path
             ...(unlinkRelayId ? { unlinkRelayId, unlinkAmount: amountUSD, executionMode: 'unlink' } : {}),
           }),
@@ -4366,6 +4383,18 @@ export default function PredictChat() {
 
       {/* Input bar */}
       <div className="border-t border-[--border] bg-black flex-shrink-0">
+        {/* Social Pulse toggle — above input */}
+        {isConnected && (
+          <div className="max-w-2xl mx-auto px-4 pt-2 pb-0 flex items-center">
+            <SocialPulseToggle
+              isActive={socialPulseActive}
+              onActivate={handleSocialPulseActivate}
+              onDeactivate={handleSocialPulseDeactivate}
+              walletAddress={address?.toLowerCase()}
+              lang={lang}
+            />
+          </div>
+        )}
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-2">
           <input type="text" value={inputText}
             onChange={e => setInputText(e.target.value)}

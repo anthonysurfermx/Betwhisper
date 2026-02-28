@@ -21,37 +21,20 @@ function useInView(threshold = 0.15) {
   return { ref, visible }
 }
 
-// Animated number counter
-function Counter({ end, suffix = '' }: { end: number; suffix?: string }) {
-  const [count, setCount] = useState(0)
-  const { ref, visible } = useInView()
-  useEffect(() => {
-    if (!visible) return
-    let frame: number
-    const duration = 1200
-    const start = performance.now()
-    const animate = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setCount(Math.round(eased * end))
-      if (progress < 1) frame = requestAnimationFrame(animate)
-    }
-    frame = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(frame)
-  }, [visible, end])
-  return <span ref={ref} className="tabular-nums">{count}{suffix}</span>
-}
-
-// Rotating assistant names
+// Rotating assistant names — one per culture
 const ASSISTANT_NAMES = [
-  'Don Fede',
-  'Buddy',
-  'La Guera',
-  'Seu Jorge',
-  'El Profe',
-  'Mate',
-  'Coach',
-  'Dona Cida',
+  'Buddy',      // US
+  'El Profe',   // MX
+  'Mate',       // AR
+  'Seu Jorge',  // BR
+  'Coach',      // US/UK
+  'La Guera',   // MX
+  'Sensei',     // JP
+  'Dona Cida',  // BR
+  'Chief',      // NG
+  'Don Fede',   // MX
+  'Habibi',     // MENA
+  'Guru',       // IN
 ]
 
 function RotatingName() {
@@ -80,7 +63,7 @@ function RotatingName() {
   )
 }
 
-// Live conversation demo
+// Live conversation demo — tells the story in 4 lines
 function ConversationDemo() {
   const [step, setStep] = useState(0)
   const [nameIdx, setNameIdx] = useState(0)
@@ -89,23 +72,21 @@ function ConversationDemo() {
     const run = () => {
       setStep(0)
       setNameIdx(prev => (prev + 1) % ASSISTANT_NAMES.length)
-      const delays = [800, 2400, 4000, 5800, 7600, 9400]
+      const delays = [800, 2400, 4000, 5800]
       return delays.map((d, i) => setTimeout(() => setStep(i + 1), d))
     }
     const initial = run()
-    const loop = setInterval(() => { run() }, 13000)
+    const loop = setInterval(() => { run() }, 10000)
     return () => { initial.forEach(clearTimeout); clearInterval(loop) }
   }, [])
 
   const name = ASSISTANT_NAMES[nameIdx]
 
   const lines = [
-    { who: 'user', text: `${name}, what are the odds on Verstappen winning?` },
-    { who: 'agent', text: 'Verstappen at $0.21 YES. Running Agent Radar...' },
-    { who: 'agent', text: '78% weighted consensus YES. Smart money loading.', tag: 'SIGNAL' },
-    { who: 'agent', text: '2 AI agents detected. Consensus may be inflated.', tag: 'WARNING' },
-    { who: 'user', text: `${name}, bet $5 on Yes` },
-    { who: 'agent', text: 'Confirmed. 23.8 shares at $0.21. MON intent recorded on Monad.', tag: 'CONFIRMED' },
+    { who: 'user', text: `${name}, bet $5 on Lakers` },
+    { who: 'agent', text: '2 bots filtered. Smart money says YES at 78%.', tag: 'PROTECTS' },
+    { who: 'agent', text: '12 traders near MSG went Lakers.', tag: 'CONNECTS' },
+    { who: 'agent', text: 'Done. 23.8 shares. Deposit and trade are unlinkable.', tag: 'SIMPLIFIES' },
   ]
 
   return (
@@ -115,12 +96,9 @@ function ConversationDemo() {
           <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
           <span className="text-[11px] text-[--text-secondary] tracking-wide">Live session</span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-white/40">Assistant: <span className="text-white/70 font-semibold">{name}</span></span>
-          <span className="text-[10px] text-[--text-tertiary] font-mono">monad:143</span>
-        </div>
+        <span className="text-[10px] text-white/40">Assistant: <span className="text-white/70 font-semibold">{name}</span></span>
       </div>
-      <div className="p-5 space-y-3 min-h-[320px]">
+      <div className="p-5 space-y-3 min-h-[220px]">
         {lines.map((line, i) => (
           i < step && (
             <div
@@ -134,23 +112,23 @@ function ConversationDemo() {
                   <span className="text-[9px] font-bold text-white/60">{name.charAt(0)}</span>
                 </div>
               )}
-              <div className={`px-3 py-2 max-w-[320px] text-[13px] leading-relaxed ${
+              <div className={`px-3 py-2 max-w-[340px] text-[13px] leading-relaxed ${
                 line.who === 'user'
                   ? 'bg-white text-black'
-                  : line.tag === 'WARNING'
+                  : line.tag === 'PROTECTS'
                     ? 'border border-amber-500/30 text-amber-400/90'
-                    : line.tag === 'CONFIRMED'
-                      ? 'border border-emerald-500/30 text-emerald-400/90'
-                      : 'border border-[--border-light] text-white/70'
+                    : line.tag === 'CONNECTS'
+                      ? 'border border-[#836EF9]/30 text-[#836EF9]/90'
+                      : 'border border-emerald-500/30 text-emerald-400/90'
               }`}>
-                {line.tag === 'SIGNAL' && (
-                  <span className="text-[9px] font-bold tracking-wider text-emerald-500 block mb-1">SIGNAL</span>
+                {line.tag === 'PROTECTS' && (
+                  <span className="text-[9px] font-bold tracking-wider text-amber-500 block mb-1">PROTECTS</span>
                 )}
-                {line.tag === 'WARNING' && (
-                  <span className="text-[9px] font-bold tracking-wider text-amber-500 block mb-1">AGENT SHIELD</span>
+                {line.tag === 'CONNECTS' && (
+                  <span className="text-[9px] font-bold tracking-wider text-[#836EF9] block mb-1">CONNECTS</span>
                 )}
-                {line.tag === 'CONFIRMED' && (
-                  <span className="text-[9px] font-bold tracking-wider text-emerald-500 block mb-1">CONFIRMED</span>
+                {line.tag === 'SIMPLIFIES' && (
+                  <span className="text-[9px] font-bold tracking-wider text-emerald-500 block mb-1">SIMPLIFIES</span>
                 )}
                 {line.text}
               </div>
@@ -164,13 +142,12 @@ function ConversationDemo() {
 
 export default function BetWhisperLanding() {
   const [loaded, setLoaded] = useState(false)
-  useEffect(() => setLoaded(true), [])
+  useEffect(() => { setLoaded(true) }, [])
 
-  const stats = useInView()
+  const problem = useInView()
+  const solution = useInView()
   const howItWorks = useInView()
-  const shield = useInView()
   const stack = useInView()
-  const crossChain = useInView()
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -182,40 +159,21 @@ export default function BetWhisperLanding() {
             <div className="w-5 h-5 border border-white/20 flex items-center justify-center">
               <span className="text-[8px] font-bold">BW</span>
             </div>
-            <span className="text-[13px] font-semibold tracking-tight">
-              BetWhisper
-            </span>
+            <span className="text-[13px] font-semibold tracking-tight">BetWhisper</span>
           </Link>
           <div className="flex items-center gap-6">
-            <a
-              href="#how-it-works"
-              className="text-[13px] text-[--text-secondary] hover:text-white transition-colors duration-200 hidden sm:block"
-            >
-              How it works
-            </a>
-            <a
-              href="#cross-chain"
-              className="text-[13px] text-[--text-secondary] hover:text-white transition-colors duration-200 hidden sm:block"
-            >
-              Cross-chain
-            </a>
-            <a
-              href="#groups"
-              className="text-[13px] text-[--text-secondary] hover:text-white transition-colors duration-200 hidden sm:block"
-            >
-              Groups
-            </a>
+            <a href="#how-it-works" className="text-[13px] text-[--text-secondary] hover:text-white transition-colors hidden sm:block">How it works</a>
             <a
               href="https://github.com/anthonysurfermx/Betwhisper"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[13px] text-[--text-secondary] hover:text-white transition-colors duration-200 hidden sm:block"
+              className="text-[13px] text-[--text-secondary] hover:text-white transition-colors hidden sm:block"
             >
               GitHub
             </a>
             <Link
               href="/predict"
-              className="px-4 py-2 bg-white text-black text-[13px] font-semibold hover:bg-white/90 transition-colors duration-200 active:scale-[0.97]"
+              className="px-4 py-2 bg-white text-black text-[13px] font-semibold hover:bg-white/90 transition-colors active:scale-[0.97]"
             >
               Launch App
             </Link>
@@ -223,632 +181,280 @@ export default function BetWhisperLanding() {
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* ─── Hero: The Question ─── */}
       <section className="relative pt-14">
         <div className="max-w-[1200px] mx-auto px-6">
-          <div className="pt-24 md:pt-40 pb-20 md:pb-32">
-            {/* Eyebrow */}
-            <div className={`mb-6 transition-all duration-700 delay-200 ${
+          <div className="pt-24 md:pt-36 pb-16 md:pb-28">
+            {/* The big question */}
+            <h1 className={`text-[clamp(2.5rem,7vw,5.5rem)] font-bold leading-[1.0] tracking-tight mb-8 max-w-4xl transition-all duration-700 delay-300 ${
+              loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+            }`}>
+              Who&apos;s really on the
+              <br />
+              other side of your bet?
+            </h1>
+
+            {/* The answer — your agent */}
+            <div className={`mb-6 transition-all duration-700 delay-500 ${
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              <span className="text-[13px] text-[--text-secondary]">
-                The conversational interface to prediction markets
+              <p className="text-[16px] md:text-[18px] text-[--text-secondary] max-w-lg leading-relaxed">
+                Bots. Invisible whales. And you have no idea.
+                <br />
+                <span className="text-white/90">BetWhisper is your <RotatingName /></span> — an AI agent
+                that filters the noise, shows you the real crowd, and executes
+                your trade privately.
+              </p>
+            </div>
+
+            {/* Identity line */}
+            <div className={`mb-10 transition-all duration-700 delay-600 ${
+              loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              <span className="text-[13px] text-[--text-secondary] border-l-2 border-white/10 pl-3">
+                The social experience agent for prediction markets
               </span>
             </div>
 
-            {/* Headline */}
-            <h1 className={`text-[clamp(2.5rem,7vw,5.5rem)] font-bold leading-[1.0] tracking-tight mb-8 max-w-4xl transition-all duration-700 delay-400 ${
-              loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
-            }`}>
-              BetWhisper is your
-              <br />
-              <span className="text-white/90 border-b-2 border-white/20 pb-1"><RotatingName /></span>
-            </h1>
-
-            {/* Subheadline */}
-            <p className={`text-[16px] md:text-[18px] text-[--text-secondary] max-w-xl leading-relaxed mb-10 transition-all duration-700 delay-500 ${
-              loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}>
-              Name your AI assistant. Ask it about any prediction market. It detects bot manipulation, surfaces smart money signals, and executes your bet cross-chain: pay with MON on Monad, settle on Polymarket. Talk through smart glasses, send a voice note, or type.
-            </p>
-
             {/* CTAs */}
-            <div className={`flex flex-col sm:flex-row items-start gap-3 mb-20 transition-all duration-700 delay-600 ${
+            <div className={`flex flex-col sm:flex-row items-start gap-3 mb-16 transition-all duration-700 delay-700 ${
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
               <Link
                 href="/predict"
-                className="px-6 py-3 bg-white text-black text-[14px] font-semibold hover:bg-white/90 transition-all duration-200 active:scale-[0.97] flex items-center gap-2"
+                className="px-6 py-3 bg-white text-black text-[14px] font-semibold hover:bg-white/90 transition-all active:scale-[0.97] flex items-center gap-2"
               >
-                Try the Demo <ArrowRight className="w-4 h-4" />
+                Try BetWhisper <ArrowRight className="w-4 h-4" />
               </Link>
-              <a
-                href="#how-it-works"
-                className="px-6 py-3 border border-[--border-light] text-[14px] text-[--text-secondary] hover:text-white hover:border-white/30 transition-all duration-200 active:scale-[0.97]"
+              <Link
+                href="/pulse"
+                className="px-6 py-3 border border-[#836EF9]/30 text-[14px] text-[#836EF9] hover:bg-[#836EF9]/5 transition-all active:scale-[0.97]"
               >
-                How it works
-              </a>
+                Open Social Pulse
+              </Link>
             </div>
 
-            {/* Demo window */}
-            <div className={`transition-all duration-1000 delay-700 ${
+            {/* Demo — proof, not promise */}
+            <div className={`transition-all duration-1000 delay-800 ${
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             }`}>
               <ConversationDemo />
             </div>
           </div>
         </div>
-
-        {/* Bottom border */}
         <div className="border-t border-[--border]" />
       </section>
 
-      {/* Stats bar */}
-      <section ref={stats.ref} className="border-b border-[--border]">
+      {/* ─── The Problem: You don't know. ─── */}
+      <section ref={problem.ref} className="border-b border-[--border]">
         <div className="max-w-[1200px] mx-auto">
-          <div className={`grid grid-cols-3 transition-all duration-700 ${
-            stats.visible ? 'opacity-100' : 'opacity-0'
-          }`}>
-            {[
-              { value: 2, suffix: '', label: 'Chains (Monad + Polygon)' },
-              { value: 3, suffix: '', label: 'Channels (text, voice, glasses)' },
-              { value: 3, suffix: '', label: 'Languages (EN, ES, PT)' },
-            ].map((stat, i) => (
-              <div
-                key={stat.label}
-                className={`px-6 py-8 ${i < 2 ? 'border-r border-[--border]' : ''}`}
-              >
-                <div className="text-[clamp(2rem,4vw,3rem)] font-bold tracking-tight">
-                  <Counter end={stat.value} suffix={stat.suffix} />
-                </div>
-                <div className="text-[13px] text-[--text-secondary] mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section id="how-it-works" ref={howItWorks.ref} className="border-b border-[--border]">
-        <div className="max-w-[1200px] mx-auto">
-          {/* Section header */}
-          <div className="px-6 py-16 md:py-24 border-b border-[--border]">
-            <span className="text-[13px] text-[--text-secondary] block mb-4">How it works</span>
-            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight max-w-2xl transition-all duration-700 ${
-              howItWorks.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          <div className="px-6 py-12 md:py-16 border-b border-[--border]">
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
+              problem.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              Five steps from question to cross-chain bet
+              You don&apos;t know.
             </h2>
-          </div>
-
-          {/* Steps grid */}
-          <div className="grid md:grid-cols-5">
-            {[
-              {
-                num: '01',
-                title: 'Ask',
-                desc: 'Search any market. F1, NBA, crypto, politics. Type, voice note, or talk through smart glasses.',
-              },
-              {
-                num: '02',
-                title: 'Scan',
-                desc: 'Agent Radar scans holders with 7-signal bot detection, smart money tracking, convergence scores, and alpha signals.',
-              },
-              {
-                num: '03',
-                title: 'Bet',
-                desc: 'Pay with MON on Monad. BetWhisper executes on Polymarket CLOB with slippage protection.',
-              },
-              {
-                num: '04',
-                title: 'Track',
-                desc: 'Live portfolio with P&L. Transaction history with dual explorer links (Monad + Polygon).',
-              },
-              {
-                num: '05',
-                title: 'Cash Out',
-                desc: 'Sell your position. Proceeds auto-convert back to MON on Monad. Full cross-chain cycle.',
-              },
-            ].map((step, i) => (
-              <div
-                key={step.num}
-                className={`px-6 py-10 ${i < 4 ? 'border-r border-[--border]' : ''} border-b md:border-b-0 border-[--border] transition-all duration-700`}
-                style={{ transitionDelay: `${i * 100}ms` }}
-              >
-                <span className="text-[12px] font-mono text-[--text-tertiary] block mb-6">{step.num}</span>
-                <h3 className="text-[20px] font-bold mb-3">{step.title}</h3>
-                <p className="text-[13px] text-[--text-secondary] leading-relaxed">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Cross-Chain */}
-      <section id="cross-chain" ref={crossChain.ref} className="border-b border-[--border]">
-        <div className="max-w-[1200px] mx-auto">
-          <div className="grid md:grid-cols-2">
-            {/* Left: explanation */}
-            <div className={`px-6 py-16 md:py-24 md:border-r border-[--border] transition-all duration-700 ${
-              crossChain.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-md transition-all duration-700 delay-100 ${
+              problem.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-2 h-2 bg-[#836EF9] rounded-full" />
-                <span className="text-[13px] text-[#836EF9] font-semibold">Cross-Chain Execution</span>
-              </div>
-              <h2 className="text-[clamp(1.8rem,4vw,2.8rem)] font-bold tracking-tight mb-6">
-                Pay with MON. Bet on Polymarket. Cash out to MON.
-              </h2>
-              <p className="text-[14px] text-[--text-secondary] leading-relaxed mb-8">
-                BetWhisper bridges the gap between Monad and Polymarket. Your MON payment is recorded on-chain as an intent signal. The bet executes on Polygon via Polymarket CLOB. When you sell, proceeds convert back to MON automatically.
-              </p>
-              <div className="space-y-3">
-                {[
-                  'MON intent recorded on Monad (provenance layer)',
-                  'Fill-or-kill execution on Polymarket CLOB',
-                  'Sell positions and auto-cashout to MON',
-                  'Dual tx hashes: Monad + Polygon for every trade',
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-1 h-1 bg-white rounded-full" />
-                    <span className="text-[14px] text-white/80">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: visual flow */}
-            <div className={`px-6 py-16 md:py-24 flex items-center transition-all duration-700 delay-200 ${
-              crossChain.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}>
-              <div className="w-full space-y-3">
-                {[
-                  { step: '1', chain: 'MONAD', action: 'MON payment received', color: 'emerald', hash: '0x7a3f...c82d' },
-                  { step: '2', chain: 'MONAD', action: 'Intent signal recorded', color: 'emerald', hash: '0x9b2e...f41a' },
-                  { step: '3', chain: 'POLYGON', action: 'CLOB order filled (23.8 shares @ $0.21)', color: 'blue', hash: '0x4d1c...a93b' },
-                  { step: '4', chain: 'POLYGON', action: 'Position open: 23.8 YES shares', color: 'blue', hash: '' },
-                  { step: '5', chain: 'MONAD', action: 'Sell: 45.26 MON cashout sent', color: 'emerald', hash: '0xf82a...d17c' },
-                ].map((item) => (
-                  <div key={item.step} className={`border ${
-                    item.color === 'emerald' ? 'border-emerald-500/20 bg-emerald-500/[0.02]' : 'border-blue-500/20 bg-blue-500/[0.02]'
-                  } px-4 py-3 flex items-center justify-between`}>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[10px] font-mono font-bold ${
-                        item.color === 'emerald' ? 'text-emerald-500' : 'text-blue-400'
-                      }`}>{item.chain}</span>
-                      <span className="text-[13px] text-white/70">{item.action}</span>
-                    </div>
-                    {item.hash && (
-                      <span className="text-[10px] font-mono text-white/20">{item.hash}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Agent Radar — Powered by DeFi Mexico */}
-      <section id="agent-radar" ref={shield.ref} className="border-b border-[--border]">
-        <div className="max-w-[1200px] mx-auto">
-          {/* Section header */}
-          <div className={`px-6 py-16 md:py-24 border-b border-[--border] transition-all duration-700 ${
-            shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-          }`}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-2 h-2 bg-amber-500 rounded-full" />
-              <span className="text-[13px] text-amber-500 font-semibold">Polymarket Agent Radar API v1</span>
-              <span className="text-[11px] text-white/30">by</span>
-              <span className="text-[13px] text-[#836EF9] font-semibold">DeFi Mexico</span>
-            </div>
-            <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight max-w-3xl mb-4">
-              Full-spectrum intelligence for prediction markets
-            </h2>
-            <p className="text-[14px] text-[--text-secondary] leading-relaxed max-w-2xl mb-6">
-              Agent Radar scans every holder, detects bot manipulation, tracks smart money movements, computes convergence scores, and surfaces alpha signals — all before you bet. Now available as a standalone REST API.
+              Today&apos;s prediction markets have three blind spots.
             </p>
-            <a
-              href="https://github.com/anthonysurfermx/polymarket-agent-radar-API"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-[13px] text-white/60 hover:text-white transition-colors duration-200"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-              polymarket-agent-radar-API
-              <ArrowUpRight className="w-3 h-3" />
-            </a>
           </div>
 
-          {/* Intelligence Features Grid */}
           <div className="grid md:grid-cols-3">
-            {/* Bot Detection */}
-            <div className={`px-6 py-10 border-r border-[--border] border-b md:border-b-0 transition-all duration-700 ${
-              shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            {[
+              { label: 'Manipulated', desc: 'Bots inflate odds. You can\'t tell real sentiment from manufactured consensus.' },
+              { label: 'Isolated', desc: 'You bet alone. No idea what people around you think about the same market.' },
+              { label: 'Exposed', desc: 'Every trade is public. Your wallet, your position, your identity — all on-chain.' },
+            ].map((item, i) => (
+              <div
+                key={item.label}
+                className={`px-6 py-10 ${i < 2 ? 'md:border-r border-[--border]' : ''} border-b md:border-b-0 border-[--border] transition-all duration-700`}
+                style={{ transitionDelay: `${i * 100 + 200}ms` }}
+              >
+                <span className="text-[12px] font-mono text-red-400/60 block mb-3">{item.label}</span>
+                <p className={`text-[14px] text-[--text-secondary] leading-relaxed transition-all duration-700 ${
+                  problem.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── The Answer: Now you do. ─── */}
+      <section ref={solution.ref} className="border-b border-[--border]">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="px-6 py-14 md:py-20 border-b border-[--border]">
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight max-w-2xl transition-all duration-700 ${
+              solution.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              Now you do.
+            </h2>
+            <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-md transition-all duration-700 delay-100 ${
+              solution.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              Your agent protects, connects, and simplifies — so you bet with clarity, not blindness.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3">
+            {/* Protects */}
+            <div className={`px-6 py-10 md:border-r border-[--border] border-b md:border-b-0 border-[--border] transition-all duration-700 ${
+              solution.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                <span className="text-[11px] text-amber-500 font-semibold tracking-wide">BOT DETECTION</span>
+                <span className="text-[11px] text-amber-500 font-semibold tracking-wide">PROTECTS</span>
               </div>
-              <h3 className="text-[18px] font-bold mb-3">7-Signal Bot Scoring</h3>
-              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-4">
-                Behavioral fingerprinting across interval regularity, split/merge activity, sizing consistency, 24/7 patterns, win rate extremes, market concentration, and ghost whale detection.
+              <h3 className="text-[20px] font-bold mb-2">Filters bots. Hides your identity.</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
+                Agent Radar scans every holder and flags bots before you bet. Unlink breaks the on-chain link between your deposit and your trade with ZK proofs.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Strategies detected</span>
-                  <span className="text-white/70 font-mono">5 archetypes</span>
+                  <span className="text-[--text-secondary]">Bot detection</span>
+                  <span className="text-white/60 font-mono">7 behavioral signals</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Classifications</span>
-                  <span className="text-white/70 font-mono">bot · likely-bot · mixed · human</span>
+                  <span className="text-[--text-secondary]">Smart money</span>
+                  <span className="text-white/60 font-mono">top 50 PnL whales</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-[--text-secondary]">Strategy types</span>
-                  <span className="text-white/70 font-mono">MM · Hybrid · Sniper · Momentum</span>
+                  <span className="text-[--text-secondary]">Privacy</span>
+                  <span className="text-white/60 font-mono">Unlink ZK pool</span>
                 </div>
               </div>
             </div>
 
-            {/* Smart Money Intelligence */}
-            <div className={`px-6 py-10 border-r border-[--border] border-b md:border-b-0 transition-all duration-700 delay-100 ${
-              shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                <span className="text-[11px] text-emerald-500 font-semibold tracking-wide">SMART MONEY</span>
-              </div>
-              <h3 className="text-[18px] font-bold mb-3">Whale Tracking Engine</h3>
-              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-4">
-                Scans top PnL traders from the Polymarket leaderboard. Tracks their positions, detects consensus markets, analyzes portfolio construction, and surfaces whale entry/exit signals.
-              </p>
-              <div className="space-y-2 text-[12px]">
-                <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Leaderboard scan</span>
-                  <span className="text-white/70 font-mono">up to 50 traders</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Edge tracker</span>
-                  <span className="text-white/70 font-mono">entry vs market price</span>
-                </div>
-                <div className="flex justify-between py-1.5">
-                  <span className="text-[--text-secondary]">Whale signals</span>
-                  <span className="text-white/70 font-mono">72h window · conviction %</span>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Scores */}
-            <div className={`px-6 py-10 border-b md:border-b-0 transition-all duration-700 delay-200 ${
-              shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            {/* Connects */}
+            <div className={`px-6 py-10 md:border-r border-[--border] border-b md:border-b-0 border-[--border] transition-all duration-700 delay-100 ${
+              solution.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-1.5 h-1.5 bg-[#836EF9] rounded-full" />
-                <span className="text-[11px] text-[#836EF9] font-semibold tracking-wide">AI SCORES</span>
+                <span className="text-[11px] text-[#836EF9] font-semibold tracking-wide">CONNECTS</span>
               </div>
-              <h3 className="text-[18px] font-bold mb-3">3 Intelligence Layers</h3>
-              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-4">
-                Convergence Score (5-component, 0-100), Alpha Signals (5 cross-referenced signal types), and Trader Reliability Score — computed in real-time from live market data.
+              <h3 className="text-[20px] font-bold mb-2">Shows you the crowd around you.</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
+                Social Pulse is a live heatmap of what people near you are betting. Opt-in only — activate with PIN + Face ID. Your exact location is never shared.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Convergence</span>
-                  <span className="text-white/70 font-mono">consensus · edge · momentum · quality</span>
+                  <span className="text-[--text-secondary]">Heatmap</span>
+                  <span className="text-white/60 font-mono">real-time push</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Alpha signals</span>
-                  <span className="text-white/70 font-mono">5 types · confidence ranked</span>
+                  <span className="text-[--text-secondary]">Activation</span>
+                  <span className="text-white/60 font-mono">PIN + Face ID</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-[--text-secondary]">Reliability</span>
-                  <span className="text-white/70 font-mono">win rate · PnL · diversification</span>
+                  <span className="text-[--text-secondary]">GPS privacy</span>
+                  <span className="text-white/60 font-mono">~80m fuzzing</span>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* API Endpoints Visual */}
-          <div className="border-t border-[--border]">
-            <div className="grid md:grid-cols-2">
-              {/* Left: API card */}
-              <div className={`px-6 py-10 md:border-r border-[--border] transition-all duration-700 delay-300 ${
-                shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              }`}>
-                <div className="border border-[--border-light] bg-black">
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-[--border-light]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                      <span className="text-[11px] text-[--text-secondary] tracking-wide">API v1 Endpoints</span>
-                    </div>
-                    <span className="text-[10px] text-white/30 font-mono">13 routes</span>
-                  </div>
-                  <div className="px-5 py-4 space-y-1.5 font-mono text-[11px]">
-                    {[
-                      { method: 'GET', path: '/smart-money', tag: 'HEAVY' },
-                      { method: 'GET', path: '/smart-money/alpha', tag: '' },
-                      { method: 'GET', path: '/smart-money/convergence', tag: '' },
-                      { method: 'GET', path: '/wallet/:address', tag: '' },
-                      { method: 'GET', path: '/market/:slug', tag: '' },
-                      { method: 'GET', path: '/trader/:address/reliability', tag: '' },
-                      { method: 'GET', path: '/bonds', tag: '' },
-                      { method: 'GET', path: '/orderbook/:tokenId', tag: '' },
-                      { method: 'GET', path: '/open-interest/:conditionId', tag: '' },
-                      { method: 'POST', path: '/explain', tag: 'SSE' },
-                    ].map((ep, i) => (
-                      <div key={i} className="flex items-center gap-3 py-1">
-                        <span className={`w-8 text-[10px] font-bold ${ep.method === 'POST' ? 'text-amber-500' : 'text-emerald-500'}`}>{ep.method}</span>
-                        <span className="text-white/50">/api/v1{ep.path}</span>
-                        {ep.tag && (
-                          <span className={`text-[9px] px-1.5 py-0.5 ${
-                            ep.tag === 'HEAVY' ? 'bg-amber-500/10 text-amber-500' : 'bg-[#836EF9]/10 text-[#836EF9]'
-                          }`}>{ep.tag}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right: Sample response */}
-              <div className={`px-6 py-10 transition-all duration-700 delay-400 ${
-                shield.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              }`}>
-                <div className="border border-amber-500/20 bg-amber-500/[0.02]">
-                  <div className="flex items-center gap-2 px-5 py-3 border-b border-amber-500/20">
-                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                    <span className="text-[11px] text-amber-500 font-semibold tracking-wide">AGENT SHIELD ACTIVE</span>
-                  </div>
-                  <div className="px-5 py-4 space-y-3 text-[13px]">
-                    <div className="flex justify-between py-2 border-b border-amber-500/10">
-                      <span className="text-[--text-secondary]">Bot score</span>
-                      <span className="text-amber-400 font-semibold">82/100 — bot</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-amber-500/10">
-                      <span className="text-[--text-secondary]">Strategy</span>
-                      <span className="text-red-400 font-semibold">MARKET MAKER (The House)</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-amber-500/10">
-                      <span className="text-[--text-secondary]">Convergence score</span>
-                      <span className="text-emerald-400 font-semibold">72 — MODERATE</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-amber-500/10">
-                      <span className="text-[--text-secondary]">Alpha signal</span>
-                      <span className="text-[#836EF9] font-semibold">WHALE CONVERGENCE (89%)</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-amber-500/10">
-                      <span className="text-[--text-secondary]">Trader reliability</span>
-                      <span className="text-emerald-400 font-semibold">68 — RELIABLE</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-amber-500/10">
-                      <span className="text-[--text-secondary]">Human whale consensus</span>
-                      <span className="text-emerald-400 font-semibold">78% YES</span>
-                    </div>
-                    <div className="pt-2">
-                      <span className="text-[12px] text-amber-500/60">
-                        3 whales bought YES in 24h. High conviction cluster detected.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Attribution bar */}
-          <div className="border-t border-[--border] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-[12px] text-white/40">Powered by</span>
-              <span className="text-[13px] font-semibold text-[#836EF9]">DeFi Mexico</span>
-              <span className="text-[11px] text-white/20">|</span>
-              <span className="text-[12px] text-white/40 font-mono">Polymarket Agent Radar API v1</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <a
-                href="https://github.com/anthonysurfermx/polymarket-agent-radar-API"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[12px] text-[--text-tertiary] hover:text-white transition-colors flex items-center gap-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-                View API Source
-                <ArrowUpRight className="w-3 h-3" />
-              </a>
-              <div className="flex items-center gap-1.5">
+            {/* Simplifies */}
+            <div className={`px-6 py-10 transition-all duration-700 delay-200 ${
+              solution.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              <div className="flex items-center gap-2 mb-4">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                <span className="text-[11px] text-emerald-500/80">13 endpoints live</span>
+                <span className="text-[11px] text-emerald-500 font-semibold tracking-wide">SIMPLIFIES</span>
+              </div>
+              <h3 className="text-[20px] font-bold mb-2">One message. Two chains. Done.</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
+                Tell your agent what to bet. It handles MON payment on Monad, order execution on Polymarket, and cashout back to MON. Text, voice, or smart glasses.
+              </p>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Intent</span>
+                  <span className="text-white/60 font-mono">Monad</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Execution</span>
+                  <span className="text-white/60 font-mono">Polymarket CLOB</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Channels</span>
+                  <span className="text-white/60 font-mono">text · voice · glasses</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Channels */}
-      <section className="border-b border-[--border]">
+      {/* ─── How It Works ─── */}
+      <section id="how-it-works" ref={howItWorks.ref} className="border-b border-[--border]">
         <div className="max-w-[1200px] mx-auto">
-          <div className="px-6 py-16 md:py-24 border-b border-[--border]">
-            <span className="text-[13px] text-[--text-secondary] block mb-4">Channels</span>
-            <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight max-w-2xl">
-              One assistant, everywhere you are
+          <div className="px-6 py-14 md:py-20 border-b border-[--border]">
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
+              howItWorks.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              Ask. Scan. Bet. Track.
             </h2>
           </div>
-          <div className="grid md:grid-cols-3">
+
+          <div className="grid md:grid-cols-4">
             {[
-              {
-                icon: '💬',
-                title: 'Web + Text',
-                desc: 'Full web dashboard with portfolio, P&L tracking, transaction history, and smart market search across sports, crypto, and politics.',
-                status: 'Live',
-              },
-              {
-                icon: '🎙️',
-                title: 'Voice',
-                desc: 'Send a voice note to your assistant. On-device transcription via SFSpeechRecognizer with Bluetooth HFP. Hands-free betting.',
-                status: 'Live',
-              },
-              {
-                icon: '👓',
-                title: 'Smart Glasses',
-                desc: 'Talk to your assistant through Meta Ray-Bans. On-device speech recognition with 2-second silence detection. The most natural way to bet.',
-                status: 'Live',
-              },
-            ].map((channel, i) => (
+              { num: '01', title: 'Ask', desc: 'Search any market. Sports, crypto, politics.' },
+              { num: '02', title: 'Scan', desc: 'Agent Radar filters bots and surfaces smart money.' },
+              { num: '03', title: 'Bet', desc: 'Pay with MON. Trade executes via ZK privacy pool.' },
+              { num: '04', title: 'Track', desc: 'Live P&L + local heatmap. Sell anytime.' },
+            ].map((s, i) => (
               <div
-                key={channel.title}
-                className={`px-6 py-10 ${i < 2 ? 'border-r border-[--border]' : ''} border-b md:border-b-0 border-[--border]`}
+                key={s.num}
+                className={`px-6 py-10 ${i < 3 ? 'md:border-r border-[--border]' : ''} border-b md:border-b-0 border-[--border] transition-all duration-700`}
+                style={{ transitionDelay: `${i * 100}ms` }}
               >
-                <div className="text-2xl mb-4">{channel.icon}</div>
-                <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-[22px] font-bold">{channel.title}</h3>
-                  <span className="text-[10px] font-semibold tracking-wider px-2 py-0.5 bg-emerald-500/10 text-emerald-500">
-                    LIVE
-                  </span>
-                </div>
-                <p className="text-[14px] text-[--text-secondary] leading-relaxed">{channel.desc}</p>
+                <span className="text-[12px] font-mono text-[--text-tertiary] block mb-5">{s.num}</span>
+                <h3 className="text-[20px] font-bold mb-2">{s.title}</h3>
+                <p className="text-[13px] text-[--text-secondary] leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Group Drafts */}
-      <section id="groups" className="border-b border-[--border]">
-        <div className="max-w-[1200px] mx-auto">
-          <div className="px-6 py-16 md:py-24 border-b border-[--border]">
-            <span className="text-[13px] text-[--text-secondary] block mb-4">Groups</span>
-            <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight max-w-2xl">
-              Bet with friends. Unlock AI.
-            </h2>
-            <p className="text-[14px] text-[--text-secondary] mt-3 max-w-lg">
-              Create a group, share a QR code, and compete. Invite one friend to unlock AI-powered market explanations.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2">
-            {/* Left: Mode cards */}
-            <div className="px-6 py-10 md:border-r border-[--border] space-y-4">
-              <div className="border border-emerald-500/30 bg-emerald-500/[0.02] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[18px] font-bold">Draft Pool</h3>
-                  <span className="text-[10px] font-semibold tracking-wider px-2 py-0.5 bg-emerald-500/10 text-emerald-500">
-                    SAME MARKET
-                  </span>
-                </div>
-                <p className="text-[14px] text-[--text-secondary] leading-relaxed">
-                  Creator picks the market. Everyone bets the same question. Pure conviction test.
-                </p>
-              </div>
-
-              <div className="border border-[--border-light] bg-black p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[18px] font-bold">Leaderboard</h3>
-                  <span className="text-[10px] font-semibold tracking-wider px-2 py-0.5 bg-white/5 text-[--text-tertiary]">
-                    FREE PICK
-                  </span>
-                </div>
-                <p className="text-[14px] text-[--text-secondary] leading-relaxed">
-                  Free competition. Each member picks their own markets. Ranked by P&L.
-                </p>
-              </div>
-
-              {/* QR flow */}
-              <div className="border border-[#836EF9]/30 bg-[#836EF9]/[0.02] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[18px] font-bold">QR Invite</h3>
-                  <span className="text-[10px] font-semibold tracking-wider px-2 py-0.5 bg-[#836EF9]/10 text-[#836EF9]">
-                    SCAN TO JOIN
-                  </span>
-                </div>
-                <p className="text-[14px] text-[--text-secondary] leading-relaxed">
-                  Share a QR code. Friend scans, connects wallet, auto-joins. AI features unlock instantly for the group creator.
-                </p>
-              </div>
-            </div>
-
-            {/* Right: Group preview */}
-            <div className="px-6 py-10 flex items-center">
-              <div className="w-full border border-[--border-light] bg-black">
-                <div className="flex items-center gap-2 px-5 py-3 border-b border-[--border-light]">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                  <span className="text-[11px] text-[--text-secondary] tracking-wide">Group preview</span>
-                </div>
-                <div className="px-5 py-4 space-y-3 text-[13px]">
-                  <div className="flex justify-between py-2 border-b border-[--border]">
-                    <span className="text-[--text-secondary]">Group</span>
-                    <span className="text-white font-semibold">F1 Friends</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-[--border]">
-                    <span className="text-[--text-secondary]">Mode</span>
-                    <span className="text-emerald-400 font-semibold">Leaderboard</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-[--border]">
-                    <span className="text-[--text-secondary]">Members</span>
-                    <span className="text-white font-semibold">3/5</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-[--border]">
-                    <span className="text-[--text-secondary]">AI Gate</span>
-                    <span className="text-emerald-400 font-semibold">UNLOCKED</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[--text-secondary]">Invite</span>
-                    <span className="text-white font-mono font-semibold">BW-F1-2026</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Tech Stack */}
+      {/* ─── Built with ─── */}
       <section ref={stack.ref} className="border-b border-[--border]">
         <div className="max-w-[1200px] mx-auto">
-          <div className="px-6 py-16 md:py-20">
-            <span className="text-[13px] text-[--text-secondary] block mb-10">Built with</span>
-            <div className={`grid grid-cols-2 md:grid-cols-3 gap-px bg-[--border] transition-all duration-700 ${
+          <div className="px-6 py-12">
+            <span className="text-[13px] text-[--text-secondary] block mb-6">Built with</span>
+            <div className={`grid grid-cols-3 md:grid-cols-6 gap-px bg-[--border] transition-all duration-700 ${
               stack.visible ? 'opacity-100' : 'opacity-0'
             }`}>
               {[
-                { name: 'Monad', desc: 'Intent layer + data provenance', url: 'https://monad.xyz' },
-                { name: 'Polymarket CLOB', desc: 'Order execution on Polygon', url: 'https://polymarket.com' },
-                { name: 'Gemini Live', desc: 'Multimodal AI analysis', url: 'https://deepmind.google/technologies/gemini/' },
-                { name: 'SFSpeechRecognizer', desc: 'On-device voice', url: 'https://developer.apple.com/documentation/speech' },
-                { name: 'Agent Radar API', desc: 'Smart money intelligence by DeFi Mexico', url: 'https://github.com/anthonysurfermx/polymarket-agent-radar-API' },
-                { name: 'Meta Ray-Ban', desc: 'Smart glasses interface', url: 'https://www.ray-ban.com/usa/ray-ban-meta-smart-glasses' },
-              ].map(tech => (
-                <a
-                  key={tech.name}
-                  href={tech.url}
-                  target={tech.url.startsWith('http') ? '_blank' : undefined}
-                  rel={tech.url.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className="bg-black px-6 py-6 hover:bg-[#0a0a0a] transition-colors duration-200 group"
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[15px] font-semibold">{tech.name}</span>
-                    <ArrowUpRight className="w-3 h-3 text-[--text-tertiary] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <span className="text-[12px] text-[--text-secondary]">{tech.desc}</span>
-                </a>
+                'Monad', 'Unlink', 'Polymarket', 'Gemini', 'Agent Radar', 'Ray-Ban Meta',
+              ].map(name => (
+                <div key={name} className="bg-black px-4 py-4 text-center">
+                  <span className="text-[13px] font-semibold text-white/60">{name}</span>
+                </div>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
+      {/* ─── CTA: Close the loop ─── */}
       <section className="grid-dashed">
-        <div className="max-w-[1200px] mx-auto px-6 py-24 md:py-40 text-center">
-          <h2 className="text-[clamp(2rem,5vw,4rem)] font-bold tracking-tight mb-6">
-            Name yours.
-            <br />
-            <span className="text-[--text-secondary]">Start whispering.</span>
+        <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-32 text-center">
+          <p className="text-[14px] text-[--text-secondary] mb-4">
+            Now you know who&apos;s on the other side.
+          </p>
+          <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-bold tracking-tight mb-3">
+            Your agent.
           </h2>
-          <p className="text-[16px] text-[--text-secondary] max-w-md mx-auto mb-10">
-            Pay with MON. Bet on Polymarket. Cash out cross-chain.
-            Let your AI find the edge.
+          <p className="text-[15px] text-[--text-secondary] max-w-sm mx-auto mb-8">
+            Name yours. Start whispering.
           </p>
           <Link
             href="/predict"
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-black text-[14px] font-semibold hover:bg-white/90 transition-all duration-200 active:scale-[0.97]"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-black text-[14px] font-semibold hover:bg-white/90 transition-all active:scale-[0.97]"
           >
             Launch BetWhisper <ArrowRight className="w-4 h-4" />
           </Link>
@@ -857,19 +463,14 @@ export default function BetWhisperLanding() {
 
       {/* Footer */}
       <footer className="border-t border-[--border]">
-        <div className="max-w-[1200px] mx-auto px-6 py-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="max-w-[1200px] mx-auto px-6 py-5 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-4 h-4 border border-white/20 flex items-center justify-center">
               <span className="text-[7px] font-bold">BW</span>
             </div>
-            <span className="text-[13px] font-semibold tracking-tight text-white/40">
-              BetWhisper
-            </span>
+            <span className="text-[12px] text-white/30">BetWhisper — the social experience agent for prediction markets</span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="#groups" className="text-[12px] text-[--text-tertiary] hover:text-white transition-colors">
-              Groups
-            </a>
             <a
               href="https://github.com/anthonysurfermx/Betwhisper"
               target="_blank"
@@ -878,12 +479,17 @@ export default function BetWhisperLanding() {
             >
               GitHub
             </a>
-            <span className="text-[12px] text-[--text-tertiary]">
-              Monad Blitz CDMX 2026
-            </span>
+            <a
+              href="https://github.com/anthonysurfermx/polymarket-agent-radar-API"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[12px] text-[--text-tertiary] hover:text-white transition-colors flex items-center gap-1"
+            >
+              Agent Radar API <ArrowUpRight className="w-3 h-3" />
+            </a>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-              <span className="text-[11px] text-emerald-500/80">Systems operational</span>
+              <span className="text-[11px] text-emerald-500/80">Live</span>
             </div>
           </div>
         </div>
