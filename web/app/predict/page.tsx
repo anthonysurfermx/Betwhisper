@@ -3512,6 +3512,13 @@ export default function PredictChat() {
       }
     } catch { /* use fallback */ }
 
+    // On testnet (Unlink path), use fixed 1:1 price — testnet MON has no real value
+    // This prevents requiring 48+ MON for a $1 bet when price API is down
+    if (useUnlinkPath) {
+      monPriceUSD = 1.0
+      console.log('[Unlink:Price] Using fixed $1/MON for testnet')
+    }
+
     const amountUSD = parseFloat(amount)
     const monAmountNum = (amountUSD / monPriceUSD) * 1.01
     const monAmount = monAmountNum.toFixed(4)
