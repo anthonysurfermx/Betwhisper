@@ -6,20 +6,19 @@ import { MON_PRICE_API } from './constants'
 
 const PRICE_SOURCES = [
   {
+    name: 'defillama',
+    url: 'https://coins.llama.fi/prices/current/coingecko:monad',
+    extract: (data: Record<string, unknown>): number | null => {
+      const coins = data?.coins as Record<string, { price?: number; confidence?: number }> | undefined
+      const mon = coins?.['coingecko:monad']
+      return mon?.price && mon.price > 0 ? mon.price : null
+    },
+  },
+  {
     name: 'coingecko',
     url: MON_PRICE_API,
     extract: (data: Record<string, Record<string, number>>): number | null =>
       data?.monad?.usd > 0 ? data.monad.usd : null,
-  },
-  {
-    name: 'dexscreener',
-    url: 'https://api.dexscreener.com/latest/dex/search?q=MON%20USD',
-    extract: (data: Record<string, unknown>): number | null => {
-      const pairs = data?.pairs as Array<{ baseToken?: { symbol?: string }; priceUsd?: string }> | undefined
-      if (!Array.isArray(pairs)) return null
-      const monPair = pairs.find(p => p.baseToken?.symbol?.toUpperCase() === 'MON')
-      return monPair?.priceUsd ? parseFloat(monPair.priceUsd) : null
-    },
   },
   {
     name: 'geckoterminal',
@@ -39,7 +38,7 @@ let cacheTimestamp = 0
 const CACHE_TTL_MS = 60_000         // 60 seconds
 const STALE_CACHE_TTL_MS = 300_000  // 5 minutes (last resort)
 const FETCH_TIMEOUT_MS = 4_000      // 4s per source
-const MAX_DEVIATION = 0.05          // 5% max deviation between sources
+const MAX_DEVIATION = 0.15          // 15% max deviation between sources (DexScreener can have alt-chain tokens)
 
 export interface MonPriceResult {
   price: number | null  // null = circuit breaker open, refuse trade
