@@ -3554,11 +3554,16 @@ export default function PredictChat() {
         // The SDK only prepares calldata — we must send it ourselves
         steps[0].detail = lang === 'es' ? 'Firmando transacción...' : 'Signing transaction...'
         updateTimeline(steps)
-        console.log('[Unlink:Deposit] Submitting tx on-chain via signer...')
+        // gasLimit: Monad estimateGas fails on contract calls — set manual limit
+        // Unlink deposit() calls the pool contract with calldata, not a simple EOA transfer
+        const calldataBytes = depositResult.calldata ? (depositResult.calldata.length - 2) / 2 : 0
+        const gasLimit = 500_000 + calldataBytes * 16 // 500k base for contract call + calldata cost
+        console.log('[Unlink:Deposit] Submitting tx on-chain via signer...', { gasLimit })
         const depositTx = await signer.sendTransaction({
           to: depositResult.to,
           data: depositResult.calldata,
           value: depositResult.value,
+          gasLimit,
         })
         console.log('[Unlink:Deposit] Tx sent, waiting for receipt...', { txHash: depositTx.hash })
         const depositReceipt = await depositTx.wait()
