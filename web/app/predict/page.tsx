@@ -3528,11 +3528,23 @@ export default function PredictChat() {
       updateTimeline(steps)
 
       try {
+        // Step 1a: Prepare deposit (generates calldata but does NOT send on-chain)
         const depositResult = await unlinkDeposit([{
           token: MON_TOKEN,
           amount: monAmountWei,
           depositor: address!,
         }])
+
+        // Step 1b: Submit the deposit tx on-chain via user's connected wallet
+        // The SDK only prepares calldata — we must send it ourselves
+        steps[0].detail = lang === 'es' ? 'Firmando transacción...' : 'Signing transaction...'
+        updateTimeline(steps)
+        const depositTx = await signer.sendTransaction({
+          to: depositResult.to,
+          data: depositResult.calldata,
+          value: depositResult.value,
+        })
+        await depositTx.wait()
 
         // confirmDeposit: waits for commitments to be indexed AND updates local wallet state
         // Retry up to 3 times — testnet indexer can be slow
