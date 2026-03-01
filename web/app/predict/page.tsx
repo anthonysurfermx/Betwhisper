@@ -175,7 +175,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     radarResult: "Scanned {scanned} of {total} holders. {agentPct}% agent activity detected.",
     noWhales: "No tracked whales in this market. You can still trade.",
     howMuch: "How much?",
-    placingBet: "Placing {amount} MON on {side}...",
+    placingBet: "Trading {amount} MON on {side}...",
     betConfirmed: "Trade confirmed on Polymarket.",
     connectWallet: "Connect your wallet to see your portfolio.",
     loadingPortfolio: "Loading portfolio...",
@@ -925,11 +925,11 @@ function BetChoiceAttachment({ slug, yesPrice, noPrice, onPickSide }: {
       <div className="px-4 py-3 flex items-center gap-2">
         <button onClick={() => onPickSide('Yes', slug, 'skip')}
           className="flex-1 py-2 text-[12px] font-semibold border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 transition-colors active:scale-[0.97]">
-          BET YES
+          TRADE YES
         </button>
         <button onClick={() => onPickSide('No', slug, 'skip')}
           className="flex-1 py-2 text-[12px] font-semibold border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors active:scale-[0.97]">
-          BET NO
+          TRADE NO
         </button>
       </div>
     </div>
@@ -1856,11 +1856,11 @@ function SuccessProbabilityAttachment({ probability, market, signalHash, lang, o
           <div className="flex items-center gap-2">
             <button onClick={() => onManualBet('Yes', market.slug, signalHash, market.conditionId)}
               className="flex-1 py-2 text-[12px] font-semibold border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 transition-colors active:scale-[0.97]">
-              BET YES
+              TRADE YES
             </button>
             <button onClick={() => onManualBet('No', market.slug, signalHash, market.conditionId)}
               className="flex-1 py-2 text-[12px] font-semibold border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors active:scale-[0.97]">
-              BET NO
+              TRADE NO
             </button>
           </div>
         </div>
@@ -1880,7 +1880,7 @@ function BetConfirmedAttachment({ side, amount, txHash, explorerUrl, source, sha
     <div className="mt-2 border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-3">
       <div className="flex items-center gap-2 mb-2">
         <CheckCircle className="w-4 h-4 text-emerald-500" />
-        <span className="text-[11px] font-bold font-mono text-emerald-500 tracking-[1px]">BET PLACED</span>
+        <span className="text-[11px] font-bold font-mono text-emerald-500 tracking-[1px]">TRADE PLACED</span>
         {isReal && <span className="text-[9px] font-mono text-emerald-500/50 px-1.5 py-0.5 border border-emerald-500/20">POLYMARKET</span>}
       </div>
       <div className="flex items-center gap-3 mb-2">

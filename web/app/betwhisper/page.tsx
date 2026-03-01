@@ -201,7 +201,7 @@ export default function BetWhisperLanding() {
             }`}>
               <p className="text-[16px] md:text-[18px] text-[--text-secondary] max-w-lg leading-relaxed">
                 Your prediction market trades go through a ZK privacy pool.
-                Nobody can link your deposit to your bet — not the market maker,
+                Nobody can link your deposit to your trade — not the market maker,
                 not the explorer, not even us.
                 <br /><br />
                 <span className="text-white/90">BetWhisper is your <RotatingName /></span> — an AI agent
