@@ -12,6 +12,7 @@ export interface PulseTradeEvent {
   amountBucket: string
   conditionId: string
   timestamp: number
+  executionMode?: 'direct' | 'unlink'
 }
 
 type PulseListener = (event: PulseTradeEvent) => void

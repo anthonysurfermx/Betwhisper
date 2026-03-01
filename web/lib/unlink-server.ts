@@ -3,7 +3,7 @@
 // Mnemonic stored in UNLINK_SERVER_MNEMONIC env var — wallet reconstructed on cold start
 
 import { initWallet, type UnlinkWallet } from '@unlink-xyz/node'
-import { MON_TOKEN } from './constants'
+import { MON_TOKEN, UNLINK_USDC } from './constants'
 
 let serverWallet: UnlinkWallet | null = null
 
@@ -41,7 +41,7 @@ export async function getServerUnlinkWallet(): Promise<UnlinkWallet> {
   // Log wallet state
   try {
     const account = await wallet.accounts.getActive()
-    const balance = await wallet.getBalance(MON_TOKEN)
+    const balance = await wallet.getBalance(UNLINK_USDC)
     const notes = await wallet.getNotes()
     console.log('[Unlink:Wallet] Server wallet ready', {
       address: account?.address,
@@ -70,7 +70,7 @@ export async function getServerUnlinkAddress(): Promise<string> {
 export async function verifyUnlinkTransfer(
   txHash: string,
   expectedAmount: bigint,
-  token: string = MON_TOKEN,
+  token: string = UNLINK_USDC,
 ): Promise<{ verified: boolean; note?: unknown }> {
   console.log(`[Unlink:Verify] === TRANSFER VERIFICATION START ===`)
   console.log(`[Unlink:Verify] txHash=${txHash}`)
@@ -139,21 +139,21 @@ export async function verifyUnlinkTransfer(
   return { verified: false }
 }
 
-// Withdraw MON from privacy pool to server's public EOA
+// Withdraw USDC from privacy pool to server's public EOA
 export async function withdrawFromPool(amountWei: bigint, recipientEOA: string) {
   const wallet = await getServerUnlinkWallet()
   return wallet.withdraw({
     withdrawals: [{
-      token: MON_TOKEN,
+      token: UNLINK_USDC,
       amount: amountWei,
       recipient: recipientEOA,
     }]
   })
 }
 
-// Get MON balance inside the Unlink privacy pool
+// Get USDC balance inside the Unlink privacy pool
 export async function getPoolBalance(): Promise<bigint> {
   const wallet = await getServerUnlinkWallet()
   await wallet.sync()
-  return wallet.getBalance(MON_TOKEN)
+  return wallet.getBalance(UNLINK_USDC)
 }

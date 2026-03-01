@@ -15,9 +15,15 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Markets API] ${events.length} events found for "${q}"`, events.map(e => e.title))
 
-    if (events.length === 0 && FALLBACK_EVENTS.length > 0) {
-      console.log(`[Markets API] No results, serving fallback`)
-      return NextResponse.json({ events: FALLBACK_EVENTS, cached: true })
+    if (events.length === 0) {
+      // Only serve fallback for empty/trending queries (no search term)
+      // For actual searches that found nothing, return empty so the UI can say "no results"
+      if (!q && FALLBACK_EVENTS.length > 0) {
+        console.log(`[Markets API] No trending results, serving fallback`)
+        return NextResponse.json({ events: FALLBACK_EVENTS, cached: true })
+      }
+      console.log(`[Markets API] No results for "${q}"`)
+      return NextResponse.json({ events: [], cached: false, noResults: true })
     }
 
     return NextResponse.json({ events, cached: false, v: 2 })

@@ -348,6 +348,56 @@
     animation: privacy-glow 2s ease-in-out;
   }
 
+  /* Execution border glow — pulses while a transaction step is processing */
+  @keyframes exec-border-glow {
+    0%, 100% {
+      box-shadow: 0 0 4px 0 rgba(131, 110, 249, 0.15), inset 0 0 4px 0 rgba(131, 110, 249, 0.05);
+      border-color: rgba(131, 110, 249, 0.15);
+    }
+    50% {
+      box-shadow: 0 0 20px 4px rgba(131, 110, 249, 0.3), inset 0 0 8px 0 rgba(131, 110, 249, 0.1);
+      border-color: rgba(131, 110, 249, 0.5);
+    }
+  }
+  @keyframes exec-border-glow-green {
+    0%, 100% {
+      box-shadow: 0 0 4px 0 rgba(34, 197, 94, 0.15), inset 0 0 4px 0 rgba(34, 197, 94, 0.05);
+      border-color: rgba(34, 197, 94, 0.15);
+    }
+    50% {
+      box-shadow: 0 0 20px 4px rgba(34, 197, 94, 0.3), inset 0 0 8px 0 rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.5);
+    }
+  }
+  @keyframes exec-border-glow-red {
+    0%, 100% {
+      box-shadow: 0 0 4px 0 rgba(248, 113, 113, 0.15), inset 0 0 4px 0 rgba(248, 113, 113, 0.05);
+      border-color: rgba(248, 113, 113, 0.15);
+    }
+    50% {
+      box-shadow: 0 0 20px 4px rgba(248, 113, 113, 0.3), inset 0 0 8px 0 rgba(248, 113, 113, 0.1);
+      border-color: rgba(248, 113, 113, 0.5);
+    }
+  }
+  .animate-exec-glow {
+    animation: exec-border-glow 2s ease-in-out infinite;
+  }
+  .animate-exec-glow-green {
+    animation: exec-border-glow-green 2s ease-in-out infinite;
+  }
+  .animate-exec-glow-red {
+    animation: exec-border-glow-red 2s ease-in-out infinite;
+  }
+  /* Success glow burst when all steps confirmed */
+  @keyframes exec-success-burst {
+    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); border-color: rgba(34, 197, 94, 0.5); }
+    40% { box-shadow: 0 0 30px 8px rgba(34, 197, 94, 0.3); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); border-color: rgba(34, 197, 94, 0.15); }
+  }
+  .animate-exec-success {
+    animation: exec-success-burst 1.5s ease-out forwards;
+  }
+
   /* Social Pulse toggle animations */
   @keyframes fade-in {
     from { opacity: 0; }
@@ -373,5 +423,192 @@
   @keyframes zkShimmer {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(200%); }
+  }
+
+  /* Live trade popup: appears, floats up, fades out */
+  @keyframes trade-popup {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.5);
+    }
+    12% {
+      opacity: 1;
+      transform: translate(-50%, -60%) scale(1.15);
+    }
+    25% {
+      transform: translate(-50%, -70%) scale(1);
+    }
+    70% {
+      opacity: 0.8;
+      transform: translate(-50%, -120%) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -160%) scale(0.85);
+    }
+  }
+  .animate-trade-popup {
+    animation: trade-popup 3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Ripple ring effect at trade location */
+  @keyframes trade-ripple {
+    0% {
+      width: 0; height: 0;
+      opacity: 0.7;
+    }
+    100% {
+      width: 120px; height: 120px;
+      opacity: 0;
+    }
+  }
+  .animate-trade-ripple {
+    animation: trade-ripple 1.5s ease-out forwards;
+    border: 2px solid rgba(131, 110, 249, 0.5);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .animate-trade-ripple-zk {
+    animation: trade-ripple 1.5s ease-out forwards;
+    border: 2px solid rgba(16, 185, 129, 0.5);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  /* Feed item slide-in */
+  @keyframes feed-slide-in {
+    0% {
+      opacity: 0;
+      transform: translateX(-20px);
+      background: rgba(131, 110, 249, 0.1);
+    }
+    40% {
+      opacity: 1;
+      transform: translateX(0);
+      background: rgba(131, 110, 249, 0.08);
+    }
+    100% {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.03);
+    }
+  }
+  .animate-feed-slide-in {
+    animation: feed-slide-in 1s ease-out forwards;
+  }
+
+  /* Radar sweep — user location indicator */
+  @keyframes radar-sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .animate-radar-sweep {
+    animation: radar-sweep 3s linear infinite;
+  }
+
+  /* Radar ping — expanding circle from user location */
+  @keyframes radar-ping {
+    0% {
+      width: 8px; height: 8px;
+      opacity: 0.6;
+    }
+    100% {
+      width: 80px; height: 80px;
+      opacity: 0;
+    }
+  }
+  .animate-radar-ping {
+    animation: radar-ping 2s ease-out infinite;
+    border: 1.5px solid rgba(131, 110, 249, 0.4);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  /* Volume counter number tick */
+  @keyframes vol-tick {
+    0% { transform: translateY(0); opacity: 1; }
+    40% { transform: translateY(-4px); opacity: 0.4; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .animate-vol-tick {
+    animation: vol-tick 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  /* Neighborhood label fade */
+  @keyframes hood-label {
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .animate-hood-label {
+    animation: hood-label 0.5s ease-out forwards;
+  }
+
+  /* Privacy ring donut rotation */
+  @keyframes ring-fill {
+    0% { stroke-dashoffset: 157; }
+  }
+  .animate-ring-fill {
+    animation: ring-fill 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Time slider thumb glow */
+  @keyframes slider-glow {
+    0%, 100% { box-shadow: 0 0 4px 1px rgba(131, 110, 249, 0.3); }
+    50% { box-shadow: 0 0 12px 3px rgba(131, 110, 249, 0.6); }
+  }
+  .animate-slider-glow {
+    animation: slider-glow 2s ease-in-out infinite;
+  }
+
+  /* Cluster label pulse */
+  @keyframes cluster-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  .animate-cluster-pulse {
+    animation: cluster-pulse 3s ease-in-out infinite;
+  }
+
+  /* Chat message slide-in */
+  @keyframes msg-in {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .animate-msg-in {
+    animation: msg-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Button press micro-feedback */
+  @keyframes btn-press {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.96); }
+    100% { transform: scale(1); }
+  }
+  .animate-btn-press {
+    animation: btn-press 0.15s ease-out;
+  }
+
+  /* Step confirm flash */
+  @keyframes step-flash {
+    0% { background-color: transparent; }
+    30% { background-color: rgba(34, 197, 94, 0.08); }
+    100% { background-color: transparent; }
+  }
+  .animate-step-flash {
+    animation: step-flash 0.6s ease-out;
+  }
+
+  /* Market card hover lift */
+  @keyframes card-lift {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-2px); }
   }
 }

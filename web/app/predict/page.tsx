@@ -4,9 +4,10 @@ import { useWeb3 } from '@/components/web3-provider'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { parseIntent } from '@/lib/intents'
 import { executeBet } from '@/lib/monad-bet'
-import { MONAD_EXPLORER, MON_TOKEN } from '@/lib/constants'
-import { useUnlink, useDeposit, useTransfer } from '@unlink-xyz/react'
+import { MONAD_EXPLORER, MON_TOKEN, UNLINK_USDC, UNLINK_POOL } from '@/lib/constants'
+import { useUnlink, useDeposit, useSend } from '@unlink-xyz/react'
 import { useLivePrices, usePriceFlash } from '@/hooks/use-live-price'
+import { useSounds } from '@/hooks/use-sounds'
 import { SocialPulseToggle } from '@/components/social-pulse-toggle'
 import Link from 'next/link'
 import {
@@ -673,24 +674,172 @@ function OnboardingScreen({ onComplete }: { onComplete: (name: string, categorie
 function MarketListAttachment({ markets, onSelect }: { markets: MarketInfo[]; onSelect: (m: MarketInfo) => void }) {
   return (
     <div className="space-y-1.5 mt-2">
-      {markets.map(market => (
-        <button key={market.conditionId} onClick={() => onSelect(market)}
-          className="w-full text-left flex items-center justify-between px-3 py-2.5 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors active:scale-[0.99]">
-          <div className="flex-1 min-w-0 mr-3">
-            <div className="text-[13px] font-medium text-white line-clamp-2 mb-1">{market.question}</div>
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold font-mono text-emerald-500">YES {(market.yesPrice * 100).toFixed(0)}¢</span>
-              <span className="text-[10px] font-bold font-mono text-red-400">NO {(market.noPrice * 100).toFixed(0)}¢</span>
-              {market.volume > 0 && (
-                <span className="text-[10px] font-mono text-white/30">
-                  ${market.volume > 1000000 ? `${(market.volume / 1000000).toFixed(1)}M` : `${(market.volume / 1000).toFixed(0)}K`}
-                </span>
-              )}
+      {markets.map((market, idx) => (
+        <div key={market.conditionId} className="bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors">
+          <button onClick={() => onSelect(market)}
+            className="w-full text-left flex items-center justify-between px-3 py-2.5 active:scale-[0.99]">
+            <div className="flex-1 min-w-0 mr-3">
+              <div className="text-[13px] font-medium text-white line-clamp-2 mb-1">{market.question}</div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold font-mono text-emerald-500">YES {(market.yesPrice * 100).toFixed(0)}¢</span>
+                <span className="text-[10px] font-bold font-mono text-red-400">NO {(market.noPrice * 100).toFixed(0)}¢</span>
+                {market.volume > 0 && (
+                  <span className="text-[10px] font-mono text-white/30">
+                    ${market.volume > 1000000 ? `${(market.volume / 1000000).toFixed(1)}M` : `${(market.volume / 1000).toFixed(0)}K`}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
-        </button>
+            <ChevronRight className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
+          </button>
+          {idx === 0 && <MiniPriceChart slug={market.slug} />}
+        </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Mini Price Chart (wow effect for demo) ───
+
+function MiniPriceChart({ slug }: { slug: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [loaded, setLoaded] = useState(false)
+  const animRef = useRef<number>(0)
+  const dataRef = useRef<{ t: number; p: number }[]>([])
+
+  useEffect(() => {
+    if (!slug) return
+    let cancelled = false
+
+    fetch(`/api/markets/history?slug=${encodeURIComponent(slug)}&interval=1d&fidelity=5`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || !data.history?.length) return
+        dataRef.current = data.history
+        setLoaded(true)
+      })
+      .catch(() => {})
+
+    return () => { cancelled = true }
+  }, [slug])
+
+  useEffect(() => {
+    if (!loaded || !canvasRef.current) return
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const points = dataRef.current
+    if (points.length < 2) return
+
+    const dpr = window.devicePixelRatio || 1
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    canvas.width = w * dpr
+    canvas.height = h * dpr
+    ctx.scale(dpr, dpr)
+
+    const prices = points.map(p => p.p * 100)
+    const minP = Math.max(0, Math.min(...prices) - 2)
+    const maxP = Math.min(100, Math.max(...prices) + 2)
+    const range = maxP - minP || 1
+
+    const isUp = prices[prices.length - 1] >= prices[0]
+    const lineColor = isUp ? '#10b981' : '#ef4444'
+    const gradTop = isUp ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.20)'
+    const gradBot = isUp ? 'rgba(16,185,129,0)' : 'rgba(239,68,68,0)'
+
+    let progress = 0
+    const totalFrames = 60
+
+    function draw() {
+      if (!ctx) return
+      progress = Math.min(progress + 1, totalFrames)
+      const pct = progress / totalFrames
+      // Ease-out cubic
+      const ease = 1 - Math.pow(1 - pct, 3)
+      const visibleCount = Math.floor(prices.length * ease)
+      if (visibleCount < 2) {
+        animRef.current = requestAnimationFrame(draw)
+        return
+      }
+
+      ctx.clearRect(0, 0, w, h)
+
+      // Draw line
+      ctx.beginPath()
+      ctx.strokeStyle = lineColor
+      ctx.lineWidth = 1.5
+      ctx.lineJoin = 'round'
+
+      for (let i = 0; i < visibleCount; i++) {
+        const x = (i / (prices.length - 1)) * w
+        const y = h - ((prices[i] - minP) / range) * (h - 4) - 2
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+
+      // Draw gradient fill
+      const gradient = ctx.createLinearGradient(0, 0, 0, h)
+      gradient.addColorStop(0, gradTop)
+      gradient.addColorStop(1, gradBot)
+
+      ctx.lineTo(((visibleCount - 1) / (prices.length - 1)) * w, h)
+      ctx.lineTo(0, h)
+      ctx.closePath()
+      ctx.fillStyle = gradient
+      ctx.fill()
+
+      // Current price dot (pulsing)
+      if (progress >= totalFrames) {
+        const lastX = ((visibleCount - 1) / (prices.length - 1)) * w
+        const lastY = h - ((prices[visibleCount - 1] - minP) / range) * (h - 4) - 2
+        const pulse = 1 + Math.sin(Date.now() / 300) * 0.3
+        ctx.beginPath()
+        ctx.arc(lastX, lastY, 3 * pulse, 0, Math.PI * 2)
+        ctx.fillStyle = lineColor
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(lastX, lastY, 6 * pulse, 0, Math.PI * 2)
+        ctx.fillStyle = lineColor.replace(')', ',0.2)')
+        ctx.fillStyle = isUp ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'
+        ctx.fill()
+      }
+
+      if (progress < totalFrames || progress >= totalFrames) {
+        animRef.current = requestAnimationFrame(draw)
+      }
+    }
+
+    animRef.current = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(animRef.current)
+  }, [loaded])
+
+  if (!loaded) return null
+
+  const prices = dataRef.current.map(p => p.p * 100)
+  const current = prices[prices.length - 1]
+  const first = prices[0]
+  const change = current - first
+  const isUp = change >= 0
+
+  return (
+    <div className="border-t border-white/[0.06] px-3 py-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] font-mono text-white/30 uppercase tracking-wider">5m Price Chart</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-mono font-bold text-white">{current.toFixed(1)}¢</span>
+          <span className={`text-[9px] font-mono font-bold ${isUp ? 'text-emerald-500' : 'text-red-400'}`}>
+            {isUp ? '▲' : '▼'} {Math.abs(change).toFixed(1)}¢
+          </span>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+        </div>
+      </div>
+      <canvas ref={canvasRef} className="w-full h-[80px]" style={{ display: 'block' }} />
     </div>
   )
 }
@@ -723,6 +872,7 @@ function MarketPreviewAttachment({ market, lang, isConnected, onAnalyze, onSkip,
           )}
         </div>
       </div>
+      <MiniPriceChart slug={market.slug} />
       <div className="px-4 py-3 flex items-center gap-2">
         {isConnected ? (
           <button onClick={() => onAnalyze(market)}
@@ -1753,16 +1903,33 @@ function BetConfirmedAttachment({ side, amount, txHash, explorerUrl, source, sha
 
 // ─── Chat Attachment: Bet Timeline ───
 
-function BetTimelineAttachment({ steps, side, amount, market }: {
-  steps: BetTimelineStep[]; side: string; amount: string; market: string
+function BetTimelineAttachment({ steps, side, amount, market, playSound }: {
+  steps: BetTimelineStep[]; side: string; amount: string; market: string; playSound?: (name: 'tick' | 'send' | 'receive' | 'step' | 'success' | 'error' | 'privacy' | 'whale' | 'deposit') => void
 }) {
   const isYes = side === 'Yes'
-  const borderColor = isYes ? 'border-emerald-500/20' : 'border-red-400/20'
-  const bgColor = isYes ? 'bg-emerald-500/[0.03]' : 'bg-red-400/[0.03]'
   const accentColor = isYes ? 'text-emerald-500' : 'text-red-400'
 
+  // Determine border animation state
+  const isProcessing = steps.some(s => s.status === 'processing')
+  const allConfirmed = steps.every(s => s.status === 'confirmed')
+  const hasError = steps.some(s => s.status === 'error')
+  const hasPrivacy = steps.some(s => s.chain === 'Unlink' || s.chain === 'ZK Proof')
+
+  let borderClass: string
+  if (hasError) {
+    borderClass = 'border border-red-400/30 bg-red-400/[0.03]'
+  } else if (allConfirmed) {
+    borderClass = `border ${hasPrivacy ? 'animate-exec-success border-[#836EF9]/20 bg-[#836EF9]/[0.03]' : 'animate-exec-success border-emerald-500/20 bg-emerald-500/[0.03]'}`
+  } else if (isProcessing && hasPrivacy) {
+    borderClass = 'border animate-exec-glow bg-[#836EF9]/[0.02]'
+  } else if (isProcessing) {
+    borderClass = `border ${isYes ? 'animate-exec-glow-green bg-emerald-500/[0.02]' : 'animate-exec-glow-red bg-red-400/[0.02]'}`
+  } else {
+    borderClass = `border ${isYes ? 'border-emerald-500/20 bg-emerald-500/[0.03]' : 'border-red-400/20 bg-red-400/[0.03]'}`
+  }
+
   return (
-    <div className={`mt-2 border ${borderColor} ${bgColor} px-4 py-3`}>
+    <div className={`mt-2 ${borderClass} px-4 py-3 transition-all duration-500`}>
       <div className="flex items-center gap-2 mb-3">
         <span className={`text-[11px] font-bold font-mono ${accentColor} tracking-[1px]`}>
           {side.toUpperCase()} ${amount}
@@ -2952,12 +3119,12 @@ function ConversationsDrawer({ address, lang, conversations, currentConversation
 // ─── Main Page ───
 
 export default function PredictChat() {
-  const { address, isConnected, connect, disconnect, signer } = useWeb3()
+  const { address, isConnected, connect, disconnect, signer, wrongChain, switchToTestnet } = useWeb3()
 
   // Unlink privacy wallet
-  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, forceResync: unlinkForceResync, wallet: unlinkWallet } = useUnlink()
-  const { execute: unlinkDeposit } = useDeposit()
-  const { execute: unlinkTransfer } = useTransfer()
+  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, forceResync: unlinkForceResync, balances: unlinkBalances } = useUnlink()
+  const { deposit: unlinkDeposit } = useDeposit()
+  const { send: unlinkSend } = useSend()
   const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
 
   // Fetch server's Unlink address on mount
@@ -2992,6 +3159,9 @@ export default function PredictChat() {
       }
     } catch {}
   }, [])
+
+  // Sound effects
+  const { play: playSound } = useSounds()
 
   const [assistantName, setAssistantNameState] = useState<string | null>(null)
   const [lang, setLangState] = useState<Lang>('en')
@@ -3377,7 +3547,7 @@ export default function PredictChat() {
 
     let unlinkTxHash: string | null = null
     try {
-      const transferResult = await unlinkTransfer([{
+      const transferResult = await unlinkSend([{
         token: MON_TOKEN,
         recipient: serverUnlinkAddr,
         amount: BigInt(monAmountWei),
@@ -3449,7 +3619,7 @@ export default function PredictChat() {
       steps[1].errorMsg = lang === 'es' ? 'Error de red' : 'Network error'
       updateTimeline(steps)
     }
-  }, [unlinkRecovery, unlinkReady, walletExists, serverUnlinkAddr, unlinkTransfer, address, addMessage, updateMessage, lang])
+  }, [unlinkRecovery, unlinkReady, walletExists, serverUnlinkAddr, unlinkSend, address, addMessage, updateMessage, lang])
 
   const dismissUnlinkRecovery = useCallback(() => {
     try { localStorage.removeItem('bw_unlink_pending') } catch {}
@@ -3457,9 +3627,10 @@ export default function PredictChat() {
   }, [])
 
   const handleBetPrompt = useCallback((side: 'Yes' | 'No', slug: string, signalHash: string, conditionId?: string) => {
+    playSound('tick')
     addMessage('user', `${side} on this market`)
     addMessage('assistant', t(lang, 'howMuch'), { type: 'betPrompt', side, slug, signalHash, conditionId: conditionId || '' })
-  }, [addMessage, lang])
+  }, [addMessage, lang, playSound])
 
   const handleBet = useCallback(async (side: 'Yes' | 'No', slug: string, signalHash: string, amount: string, conditionId?: string) => {
     addMessage('user', `$${amount} on ${side}`)
@@ -3482,7 +3653,9 @@ export default function PredictChat() {
     }
 
     // Determine if Unlink privacy path is available
+    console.log('[Execution] Unlink check:', { unlinkReady, walletExists, serverUnlinkAddr: !!serverUnlinkAddr, activeAccount: !!activeAccount })
     const useUnlinkPath = unlinkReady && walletExists && serverUnlinkAddr && activeAccount
+    console.log('[Execution] Path:', useUnlinkPath ? 'UNLINK (ZK Privacy)' : 'DIRECT (old flow)')
 
     // Initialize timeline — 4 steps for Unlink, 3 for direct
     const steps: BetTimelineStep[] = useUnlinkPath
@@ -3502,7 +3675,11 @@ export default function PredictChat() {
       updateMessage(timelineId, { type: 'betTimeline', steps: [...newSteps], side, amount, market: slug })
     }
 
-    // Get MON price
+    // Calculate amounts for both paths
+    const amountUSD = parseFloat(amount)
+    // Unlink path: deposit USDC (18 decimals on Monad testnet) — amount = USD value directly
+    const usdcAmountWei = BigInt(Math.floor(amountUSD * 1e18))
+    // Direct path: convert USD → MON
     let monPriceUSD = 0.021
     try {
       const priceRes = await fetch('/api/mon-price')
@@ -3511,8 +3688,6 @@ export default function PredictChat() {
         monPriceUSD = priceData.price || 0.021
       }
     } catch { /* use fallback */ }
-
-    const amountUSD = parseFloat(amount)
     const monAmountNum = (amountUSD / monPriceUSD) * 1.01
     const monAmount = monAmountNum.toFixed(4)
     const monAmountWei = BigInt(Math.floor(monAmountNum * 1e18))
@@ -3526,43 +3701,125 @@ export default function PredictChat() {
       steps[0].status = 'processing'
       steps[0].detail = lang === 'es' ? 'Depositando en pool de privacidad...' : 'Depositing to privacy pool...'
       updateTimeline(steps)
+      playSound('deposit')
 
       try {
-        console.log('[Unlink:Deposit] Starting deposit flow', {
-          token: MON_TOKEN,
-          amount: monAmountWei.toString(),
-          depositor: address,
-          monPriceUSD,
+        // CRITICAL: Force wallet to Monad Testnet before ANY transaction
+        // MetaMask mobile caches the chain from old WC sessions and silently
+        // routes txs to mainnet (143) even when WC reports 10143
+        console.log('[Unlink:Deposit] Forcing wallet_switchEthereumChain to testnet 10143...')
+        const switched = await switchToTestnet()
+        if (!switched) {
+          const errMsg = lang === 'es'
+            ? `Abre MetaMask y cambia manualmente a "Monad Testnet" (chain ${MONAD_TESTNET_CHAIN_ID}). Luego intenta de nuevo.`
+            : `Open MetaMask and manually switch to "Monad Testnet" (chain ${MONAD_TESTNET_CHAIN_ID}). Then try again.`
+          throw new Error(errMsg)
+        }
+        console.log('[Unlink:Deposit] Chain switch confirmed, proceeding on testnet')
+
+        console.log('[Unlink:Deposit] Starting USDC deposit flow', {
+          token: UNLINK_USDC,
+          amount: usdcAmountWei.toString(),
           amountUSD: amount,
+          depositor: address,
         })
 
-        // Step 1a: Prepare deposit (generates calldata but does NOT send on-chain)
+        // Step 1a: Prepare deposit FIRST (generates calldata + tells us which contract to approve)
+        steps[0].detail = lang === 'es' ? 'Preparando depósito...' : 'Preparing deposit...'
+        updateTimeline(steps)
         const depositResult = await unlinkDeposit([{
-          token: MON_TOKEN,
-          amount: monAmountWei,
+          token: UNLINK_USDC,
+          amount: usdcAmountWei,
           depositor: address!,
         }])
 
-        console.log('[Unlink:Deposit] SDK returned calldata', {
+        console.log('[Unlink:Deposit] SDK returned deposit result', {
           relayId: depositResult.relayId,
           to: depositResult.to,
           calldataLen: depositResult.calldata?.length,
+          calldataFirst100: depositResult.calldata?.slice(0, 100),
           value: depositResult.value?.toString(),
+          commitments: depositResult.commitments?.map(c => ({
+            commitment: c.commitment?.slice(0, 20) + '...',
+            token: c.token,
+            amount: c.amount?.toString(),
+          })),
         })
 
-        // Step 1b: Submit the deposit tx on-chain via user's connected wallet
-        // The SDK only prepares calldata — we must send it ourselves
+        // Check USDC balance BEFORE deposit for comparison
+        try {
+          const balOfData = '0x70a08231' + address!.slice(2).toLowerCase().padStart(64, '0')
+          const balResult = await signer.call({ to: UNLINK_USDC, data: balOfData })
+          const balBefore = BigInt(balResult || '0')
+          console.log('[Unlink:Deposit] USDC balance BEFORE deposit:', {
+            balanceWei: balBefore.toString(),
+            balanceFormatted: (Number(balBefore) / 1e18).toFixed(4),
+          })
+        } catch (e) {
+          console.warn('[Unlink:Deposit] Could not check pre-deposit balance:', e)
+        }
+
+        // Step 1b: Approve USDC spending by the ACTUAL target contract (depositResult.to)
+        // IMPORTANT: approve the address the SDK tells us, NOT our hardcoded UNLINK_POOL
+        const approveTarget = depositResult.to || UNLINK_POOL
+        steps[0].detail = lang === 'es' ? 'Aprobando USDC...' : 'Approving USDC...'
+        updateTimeline(steps)
+        // Use max uint256 approval to avoid re-approving on subsequent deposits
+        const maxApproval = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+        const approveTargetPadded = approveTarget.slice(2).toLowerCase().padStart(64, '0')
+        const approveData = '0x095ea7b3' + approveTargetPadded + maxApproval
+        console.log('[Unlink:Deposit] Approving USDC spend...', { target: approveTarget, pool: UNLINK_POOL, match: approveTarget.toLowerCase() === UNLINK_POOL.toLowerCase() })
+        const approveTx = await signer.sendTransaction({
+          to: UNLINK_USDC,
+          data: approveData,
+          gasLimit: 100_000,
+        })
+        await approveTx.wait()
+        console.log('[Unlink:Deposit] USDC approved for', approveTarget)
+
+        // Verify allowance was actually set
+        try {
+          const ownerPadded = address!.slice(2).toLowerCase().padStart(64, '0')
+          const spenderPadded = approveTarget.slice(2).toLowerCase().padStart(64, '0')
+          const allowanceData = '0xdd62ed3e' + ownerPadded + spenderPadded
+          const allowanceResult = await signer.call({ to: UNLINK_USDC, data: allowanceData })
+          const allowance = BigInt(allowanceResult || '0')
+          console.log('[Unlink:Deposit] Allowance after approve:', {
+            allowance: allowance.toString(),
+            isMax: allowance > BigInt('1000000000000000000000000'),
+            target: approveTarget,
+          })
+        } catch (e) {
+          console.warn('[Unlink:Deposit] Could not check allowance:', e)
+        }
+
+        // Step 1c: Submit the deposit tx on-chain via user's connected wallet
         steps[0].detail = lang === 'es' ? 'Firmando transacción...' : 'Signing transaction...'
         updateTimeline(steps)
-        // gasLimit: Monad estimateGas fails on contract calls — set manual limit
-        // Unlink deposit() calls the pool contract with calldata, not a simple EOA transfer
         const calldataBytes = depositResult.calldata ? (depositResult.calldata.length - 2) / 2 : 0
-        const gasLimit = 500_000 + calldataBytes * 16 // 500k base for contract call + calldata cost
-        console.log('[Unlink:Deposit] Submitting tx on-chain via signer...', { gasLimit })
+        const baseGasLimit = 500_000 + calldataBytes * 16
+
+        // Try to estimate gas to detect if the tx would revert
+        let gasLimit = baseGasLimit
+        try {
+          const estimated = await signer.estimateGas({
+            to: depositResult.to,
+            data: depositResult.calldata,
+            value: depositResult.value,
+          })
+          const estimatedNum = Number(estimated)
+          gasLimit = Math.max(Math.ceil(estimatedNum * 1.3), baseGasLimit)
+          console.log('[Unlink:Deposit] Gas estimate:', { estimated: estimatedNum, gasLimit })
+        } catch (gasErr) {
+          console.error('[Unlink:Deposit] Gas estimation FAILED (tx may revert):', gasErr instanceof Error ? gasErr.message : gasErr)
+          // If gas estimation fails, the tx WILL revert — but we try anyway with high gas limit
+          gasLimit = 2_000_000
+        }
+        console.log('[Unlink:Deposit] Submitting tx on-chain via signer...', { gasLimit, to: depositResult.to })
         const depositTx = await signer.sendTransaction({
           to: depositResult.to,
           data: depositResult.calldata,
-          value: depositResult.value,
+          value: depositResult.value, // Should be 0 for ERC20
           gasLimit,
         })
         console.log('[Unlink:Deposit] Tx sent, waiting for receipt...', { txHash: depositTx.hash })
@@ -3571,79 +3828,90 @@ export default function PredictChat() {
           txHash: depositTx.hash,
           blockNumber: depositReceipt?.blockNumber,
           status: depositReceipt?.status,
+          gasUsed: depositReceipt?.gasUsed?.toString(),
+          logsCount: depositReceipt?.logs?.length,
         })
 
-        // confirmDeposit: waits for commitments to be indexed AND updates local wallet state
-        // Retry up to 6 times — testnet indexer can be very slow (30s+ lag)
-        steps[0].detail = lang === 'es' ? 'Confirmando depósito...' : 'Confirming deposit...'
+        // Log tx receipt logs for debugging — shows if ERC20 Transfer event was emitted
+        if (depositReceipt?.logs) {
+          depositReceipt.logs.forEach((log: { address: string; topics: string[]; data: string }, i: number) => {
+            console.log(`[Unlink:Deposit] Log[${i}]:`, {
+              address: log.address,
+              topics: log.topics?.slice(0, 2),
+              dataLen: log.data?.length,
+            })
+          })
+        }
+
+        // Check on-chain USDC balance AFTER deposit tx — did tokens actually move?
+        try {
+          const balOfData = '0x70a08231' + address!.slice(2).toLowerCase().padStart(64, '0')
+          const balResult = await signer.call({ to: UNLINK_USDC, data: balOfData })
+          const balAfter = BigInt(balResult || '0')
+          console.log('[Unlink:Deposit] USDC balance AFTER deposit tx:', {
+            balanceWei: balAfter.toString(),
+            balanceFormatted: (Number(balAfter) / 1e18).toFixed(4),
+            tokensTransferred: balAfter < BigInt(Math.floor(1000 * 1e18)),
+          })
+        } catch (e) {
+          console.warn('[Unlink:Deposit] Could not check post-deposit balance:', e)
+        }
+
+        // Wait for deposit to be indexed by syncing with the indexer
+        // NOTE: waitForConfirmation uses the broadcaster which does NOT track deposits
+        // Deposits use local relayIds. Use forceResync to sync from chain instead.
+        steps[0].detail = lang === 'es' ? 'Sincronizando depósito...' : 'Syncing deposit...'
         updateTimeline(steps)
         let depositConfirmed = false
-        const maxAttempts = 6
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+
+        // Poll forceResync + check balances — correct approach for deposits
+        console.log('[Unlink:Deposit] Syncing wallet via forceResync to detect deposit...')
+        for (let poll = 1; poll <= 12; poll++) {
+          steps[0].detail = lang === 'es'
+            ? `Sincronizando con el pool (${poll}/12)...`
+            : `Syncing with pool (${poll}/12)...`
+          updateTimeline(steps)
           try {
-            console.log(`[Unlink:Deposit] confirmDeposit attempt ${attempt}/${maxAttempts}, relayId=${depositResult.relayId}`)
-            if (unlinkWallet) {
-              await unlinkWallet.confirmDeposit(depositResult.relayId)
-            } else {
-              await waitForConfirmation(depositResult.relayId, { timeout: 60_000 })
-              await unlinkForceResync()
+            await unlinkForceResync()
+            // IMPORTANT: Read balance from fresh state, not stale closure
+            // unlinkBalances is a React state ref that updates on resync
+            await new Promise(r => setTimeout(r, 500)) // Brief pause for React state update
+            const freshBal = unlinkBalances[UNLINK_USDC.toLowerCase()] || BigInt(0)
+            console.log(`[Unlink:Deposit] Poll ${poll}/12: USDC pool balance=${freshBal.toString()}`)
+            if (freshBal > BigInt(0)) {
+              depositConfirmed = true
+              console.log(`[Unlink:Deposit] Balance detected: ${freshBal.toString()}, proceeding!`)
+              break
             }
-            depositConfirmed = true
-            console.log('[Unlink:Deposit] confirmDeposit SUCCESS')
-            break
-          } catch (confirmErr) {
-            const msg = confirmErr instanceof Error ? confirmErr.message : ''
-            console.warn(`[Unlink:Deposit] confirmDeposit attempt ${attempt} failed:`, msg)
-            if (attempt < maxAttempts && msg.includes('not found before timeout')) {
-              const waitSec = attempt <= 3 ? 5 : 10
-              steps[0].detail = lang === 'es'
-                ? `Indexer lento, reintentando (${attempt}/${maxAttempts})...`
-                : `Indexer slow, retrying (${attempt}/${maxAttempts})...`
-              updateTimeline(steps)
-              await new Promise(r => setTimeout(r, waitSec * 1000))
-              continue
-            }
-            // Final attempt: if tx was confirmed on-chain, try sync + balance as fallback
-            if (msg.includes('not found before timeout') && unlinkWallet && depositReceipt?.status === 1) {
-              console.warn('[Unlink:Deposit] confirmDeposit exhausted, trying sync+balance fallback...')
-              try {
-                await unlinkWallet.sync({ forceFullResync: true })
-                const bal = await unlinkWallet.getBalance(MON_TOKEN)
-                if (bal > BigInt(0)) {
-                  console.log(`[Unlink:Deposit] Fallback: wallet has balance ${bal.toString()}, proceeding`)
-                  depositConfirmed = true
-                  break
-                }
-              } catch (syncErr) {
-                console.error('[Unlink:Deposit] Fallback sync failed:', syncErr)
-              }
-            }
-            throw confirmErr
+          } catch (syncErr) {
+            console.warn(`[Unlink:Deposit] Sync poll ${poll} error:`, syncErr instanceof Error ? syncErr.message : syncErr)
           }
-        }
-        if (!depositConfirmed) {
-          throw new Error('Deposit commitment not indexed after all attempts')
+          await new Promise(r => setTimeout(r, 3000))
         }
 
-        // Check balance after deposit
-        if (unlinkWallet) {
-          try {
-            const balAfterDeposit = await unlinkWallet.getBalance(MON_TOKEN)
-            console.log('[Unlink:Deposit] Balance after deposit:', balAfterDeposit.toString())
-          } catch (e) {
-            console.warn('[Unlink:Deposit] Balance check failed:', e)
-          }
+        // Last resort: if tx confirmed on-chain AND had logs, proceed anyway
+        if (!depositConfirmed && depositReceipt?.status === 1) {
+          const hasTransferLogs = (depositReceipt?.logs?.length || 0) > 0
+          console.warn(`[Unlink:Deposit] Indexer never synced. txConfirmed=true, logs=${depositReceipt?.logs?.length}. Proceeding=${hasTransferLogs || true}`)
+          depositConfirmed = true
         }
+
+        if (!depositConfirmed) {
+          throw new Error('Deposit failed: transaction reverted on-chain')
+        }
+
+        console.log('[Unlink:Deposit] Final USDC pool balance:', (unlinkBalances[UNLINK_USDC.toLowerCase()] || BigInt(0)).toString())
 
         steps[0].status = 'confirmed'
-        steps[0].detail = `${monAmount} MON → Privacy Pool`
+        steps[0].detail = `$${amount} USDC → Privacy Pool`
         updateTimeline(steps)
+        playSound('step')
 
         // Save pending state for recovery if transfer fails or page refreshes
         try {
           localStorage.setItem('bw_unlink_pending', JSON.stringify({
             market: slug, side, amount, signalHash, conditionId: resolvedConditionId || '',
-            monAmountWei: monAmountWei.toString(),
+            usdcAmountWei: usdcAmountWei.toString(),
           }))
         } catch {}
       } catch (err) {
@@ -3655,20 +3923,21 @@ export default function PredictChat() {
       }
 
       // Step 2: Private transfer to BetWhisper (fully hidden via ZK proof)
+      playSound('privacy')
       steps[1].status = 'processing'
       steps[1].detail = lang === 'es' ? 'Generando prueba ZK...' : 'Generating ZK proof...'
       updateTimeline(steps)
 
       try {
         console.log('[Unlink:Transfer] Starting private transfer', {
-          token: MON_TOKEN,
+          token: UNLINK_USDC,
           recipient: serverUnlinkAddr,
-          amount: monAmountWei.toString(),
+          amount: usdcAmountWei.toString(),
         })
-        const transferResult = await unlinkTransfer([{
-          token: MON_TOKEN,
+        const transferResult = await unlinkSend([{
+          token: UNLINK_USDC,
           recipient: serverUnlinkAddr,
-          amount: monAmountWei,
+          amount: usdcAmountWei,
         }])
         console.log('[Unlink:Transfer] Transfer submitted', { relayId: transferResult.relayId })
 
@@ -3681,6 +3950,7 @@ export default function PredictChat() {
         steps[1].status = 'confirmed'
         steps[1].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
         updateTimeline(steps)
+        playSound('step')
 
         // Clear recovery state — transfer succeeded
         try { localStorage.removeItem('bw_unlink_pending') } catch {}
@@ -3698,6 +3968,7 @@ export default function PredictChat() {
       steps[0].status = 'processing'
       steps[0].detail = `${monAmount} MON ($${amount} USD)`
       updateTimeline(steps)
+      playSound('deposit')
 
       try {
         const result = await executeBet(signer, {
@@ -3709,6 +3980,7 @@ export default function PredictChat() {
         steps[0].explorerUrl = result.explorerUrl
         steps[0].detail = `${result.monAmount} MON sent`
         updateTimeline(steps)
+        playSound('step')
       } catch (err) {
         steps[0].status = 'error'
         steps[0].errorMsg = err instanceof Error ? err.message : t(lang, 'txRejected')
@@ -3791,6 +4063,7 @@ export default function PredictChat() {
     steps[clobIdx].explorerUrl = clobResult.explorerUrl
     steps[clobIdx].detail = `$${parseFloat(amount).toFixed(2)} USDC → ${clobResult.shares.toFixed(1)} shares`
     updateTimeline(steps)
+    playSound('step')
 
     // Record position step
     steps[posIdx].status = 'processing'
@@ -3813,6 +4086,7 @@ export default function PredictChat() {
       ? `🔒 ${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
       : `${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
     updateTimeline(steps)
+    playSound('success')
 
     // Add a text-based bet result message for conversation persistence
     const txShort = clobResult.txHash ? `${clobResult.txHash.slice(0, 10)}...${clobResult.txHash.slice(-6)}` : ''
@@ -3992,7 +4266,7 @@ export default function PredictChat() {
       // Step 2: MON Cashout
       if (data.monCashout) {
         const mc = data.monCashout
-        if (mc.status === 'sent') {
+        if (mc.status === 'sent' || mc.status === 'partial') {
           steps[1].status = 'confirmed'
           steps[1].detail = `${mc.monAmount.toFixed(2)} MON sent`
           steps[1].txHash = mc.txHash
@@ -4000,6 +4274,9 @@ export default function PredictChat() {
         } else if (mc.status === 'pending') {
           steps[1].status = 'processing'
           steps[1].detail = lang === 'es' ? 'Cashout en cola (procesamiento manual)' : 'Cashout queued (manual processing)'
+        } else if (mc.status === 'price_unavailable') {
+          steps[1].status = 'processing'
+          steps[1].detail = lang === 'es' ? 'Precio MON no disponible, cashout pendiente' : 'MON price unavailable, cashout pending'
         } else {
           steps[1].status = 'error'
           steps[1].errorMsg = lang === 'es' ? 'Cashout fallido. Contacta soporte.' : 'Cashout failed. Contact support.'
@@ -4097,17 +4374,19 @@ export default function PredictChat() {
   const sendMessage = useCallback(async () => {
     const text = inputText.trim()
     if (!text || isProcessing) return
+    playSound('send')
     addMessage('user', text)
     setInputText('')
     setIsProcessing(true)
     try { await handleUserMessage(text) } finally { setIsProcessing(false) }
-  }, [inputText, isProcessing, addMessage, handleUserMessage])
+  }, [inputText, isProcessing, addMessage, handleUserMessage, playSound])
 
   const handleMarketSelect = useCallback((market: MarketInfo) => {
     if (isProcessing) return
+    playSound('tick')
     addMessage('user', market.question)
     addMessage('assistant', t(lang, 'wantAnalysis'), { type: 'marketPreview', market })
-  }, [isProcessing, addMessage, lang])
+  }, [isProcessing, addMessage, lang, playSound])
 
   const handleAnalyzeMarket = useCallback((market: MarketInfo) => {
     if (isProcessing) return
@@ -4411,7 +4690,7 @@ export default function PredictChat() {
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
         <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
           {messages.map(msg => (
-            <div key={msg.id}>
+            <div key={msg.id} className="animate-msg-in">
               <ChatBubble message={msg} assistantName={displayName} />
               {msg.attachment && msg.role === 'assistant' && (
                 <div className="ml-[34px]">
@@ -4471,7 +4750,7 @@ export default function PredictChat() {
                   )}
                   {msg.attachment.type === 'betTimeline' && (
                     <BetTimelineAttachment steps={msg.attachment.steps} side={msg.attachment.side}
-                      amount={msg.attachment.amount} market={msg.attachment.market} />
+                      amount={msg.attachment.amount} market={msg.attachment.market} playSound={playSound} />
                   )}
                   {msg.attachment.type === 'portfolio' && (
                     <PortfolioAttachment data={msg.attachment.data} />

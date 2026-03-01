@@ -9,6 +9,7 @@ export interface PulseTradeEvent {
   amountBucket: string
   conditionId: string
   timestamp: number
+  executionMode?: 'direct' | 'unlink'
 }
 
 /**
@@ -41,6 +42,7 @@ export function usePulseStream(enabled: boolean = true) {
             amountBucket: data.amountBucket,
             conditionId: data.conditionId,
             timestamp: data.timestamp,
+            executionMode: data.executionMode || 'direct',
           }
           setLastTrade(trade)
           setTradeCount(c => c + 1)

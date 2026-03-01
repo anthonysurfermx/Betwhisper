@@ -5,8 +5,8 @@ import { sql } from '@/lib/db'
 import { verifyJWT, extractBearerToken } from '@/lib/auth'
 
 // MON cashout: after CLOB sell, send MON equivalent to user on Monad
-// Gas buffer deducted from cashout amount (~0.5 MON)
-const GAS_BUFFER_MON = 0.5
+// Gas buffer for Monad tx (~21k gas at ~50 gwei = negligible, keep minimal)
+const GAS_BUFFER_MON = 0.05
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
@@ -122,16 +122,21 @@ export async function POST(request: NextRequest) {
       if (monToSend > 0) {
         const serverBalance = await getServerMONBalance()
 
-        if (serverBalance > monToSend + GAS_BUFFER_MON) {
+        // Send full amount if possible, otherwise send what's available (partial cashout)
+        const actualSend = serverBalance > monToSend + GAS_BUFFER_MON
+          ? monToSend
+          : Math.max(serverBalance - GAS_BUFFER_MON, 0)
+
+        if (actualSend > 0.01) {
           try {
-            const cashoutResult = await sendMON(wallet, monToSend)
+            const cashoutResult = await sendMON(wallet, actualSend)
             monCashout = {
-              monAmount: monToSend,
+              monAmount: actualSend,
               txHash: cashoutResult.txHash,
               explorerUrl: cashoutResult.explorerUrl,
-              status: 'sent',
+              status: actualSend >= monToSend ? 'sent' : 'partial',
             }
-            console.log(`[Cashout] Sent ${monToSend.toFixed(4)} MON to ${wallet}`)
+            console.log(`[Cashout] Sent ${actualSend.toFixed(4)} MON to ${wallet} (requested: ${monToSend.toFixed(4)}, balance: ${serverBalance.toFixed(4)})`)
           } catch (err) {
             console.error('[Cashout] MON transfer failed:', err instanceof Error ? err.message : err)
             monCashout = { monAmount: monToSend, txHash: '', explorerUrl: '', status: 'failed' }

@@ -115,9 +115,10 @@ export async function POST(request: NextRequest) {
     const fuzzLat = parseFloat(lat) + (Math.random() - 0.5) * 0.0014
     const fuzzLng = parseFloat(lng) + (Math.random() - 0.5) * 0.0018
 
+    const execMode = body.executionMode === 'unlink' ? 'unlink' : 'direct'
     sql`
-      INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash)
-      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${fuzzLat}, ${fuzzLng}, ${tsBucket}, ${walletHash})
+      INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash, execution_mode)
+      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${fuzzLat}, ${fuzzLng}, ${tsBucket}, ${walletHash}, ${execMode})
     `.catch((e: unknown) => console.error('[Pulse] Failed to save trade:', e instanceof Error ? e.message : e))
 
     // Broadcast to all connected SSE clients — instant heatmap update (fuzzed location)
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
       lat: fuzzLat, lng: fuzzLng,
       side: pulseSide, amountBucket: bucket,
       conditionId, timestamp: Date.now(),
+      executionMode: execMode,
     })
   }
 

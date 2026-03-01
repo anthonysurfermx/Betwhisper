@@ -111,14 +111,14 @@ importers:
         specifier: ^5.90.12
         version: 5.90.21(react@19.2.0)
       '@unlink-xyz/core':
-        specifier: ^0.1.6
-        version: 0.1.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        specifier: ^0.1.8
+        version: 0.1.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@unlink-xyz/node':
-        specifier: ^0.1.6
-        version: 0.1.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        specifier: ^0.1.8
+        version: 0.1.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@unlink-xyz/react':
-        specifier: ^0.1.6
-        version: 0.1.6(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
+        specifier: ^0.1.8
+        version: 0.1.8(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
       '@vercel/analytics':
         specifier: 1.3.1
         version: 1.3.1(next@16.0.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
@@ -2082,16 +2082,16 @@ packages:
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
-  '@unlink-xyz/core@0.1.6':
-    resolution: {integrity: sha512-ViHxgToA//9h5+6KvKx+zgj8zWl8GrgASsa06Kin7i1FI+VY2nO+vkduH9+A0sZKOYoDcn3RJ0Rfzpw/yxLFpg==}
+  '@unlink-xyz/core@0.1.8':
+    resolution: {integrity: sha512-EyjGuv98MoiH59IMNBQY2HXLF6uY1x4h7ng3flvRcST+28IawIje5sixjM37F//WUqtWHS6u1q78QVaF4Idkqw==}
 
-  '@unlink-xyz/node@0.1.6':
-    resolution: {integrity: sha512-Y2283L1v/zGL0X59s57D0pyEu7RE/Qrn/FagdDWef8Om8YbLaf/sg5ALe1z6U4JhU14R9xjR2Jb/aGj32JDuIQ==}
+  '@unlink-xyz/node@0.1.8':
+    resolution: {integrity: sha512-r30Ah1ASLO6on5qgRaOTYFueqOT9wy9v9WBN5nr/BN6oguTeGg8VZyRk3JOKiavHSmckKfGqg62HZBq0b6GKmA==}
 
-  '@unlink-xyz/react@0.1.6':
-    resolution: {integrity: sha512-WFdYfnwbqlyX5EW+/0mu7thI9V2XqvLhCGIhc34Cn1OIfW/lmWDajU2lHn3qfbfSXw+WNbEBI8i1cnJuoJe1uA==}
+  '@unlink-xyz/react@0.1.8':
+    resolution: {integrity: sha512-NeNcr2bWD80Zox6mD9xAhrteOd5vG0nzIXzy2WnVBYmpG+E375+VxBPdJmVLcCEY7YdQniFJ2S0o59DfkcEsMw==}
     peerDependencies:
-      '@unlink-xyz/multisig': workspace:*
+      '@unlink-xyz/multisig': 0.1.8
       react: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
       '@unlink-xyz/multisig':
@@ -3375,8 +3375,8 @@ packages:
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
 
-  pump@3.0.3:
-    resolution: {integrity: sha512-todwxLMY7/heScKmntwQG8CXVkWUOdYxIvY2s0VWAAMh/nd8SoYiRaKjlr7+iCs984f2P8zvrfWcDDYVb73NfA==}
+  pump@3.0.4:
+    resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
 
   qrcode.react@4.2.0:
     resolution: {integrity: sha512-QpgqWi8rD9DsS9EP3z7BT+5lY5SFhsqGjpgW5DY/i3mK4M9DTBNz3ErMi8BWYEfI3L0d8GIbGmcdFAS1uIRGjA==}
@@ -6756,7 +6756,7 @@ snapshots:
       '@types/node': 22.19.13
     optional: true
 
-  '@unlink-xyz/core@0.1.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+  '@unlink-xyz/core@0.1.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@noble/curves': 2.0.1
       '@noble/hashes': 2.0.0
@@ -6776,17 +6776,17 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@unlink-xyz/node@0.1.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+  '@unlink-xyz/node@0.1.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
-      '@unlink-xyz/core': 0.1.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@unlink-xyz/core': 0.1.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       better-sqlite3: 11.10.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@unlink-xyz/react@0.1.6(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)':
+  '@unlink-xyz/react@0.1.8(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)':
     dependencies:
-      '@unlink-xyz/core': 0.1.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@unlink-xyz/core': 0.1.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       react: 19.2.0
     transitivePeerDependencies:
       - bufferutil
@@ -8569,7 +8569,7 @@ snapshots:
       mkdirp-classic: 0.5.3
       napi-build-utils: 2.0.0
       node-abi: 3.87.0
-      pump: 3.0.3
+      pump: 3.0.4
       rc: 1.2.8
       simple-get: 4.0.1
       tar-fs: 2.1.4
@@ -8591,7 +8591,7 @@ snapshots:
 
   proxy-from-env@1.1.0: {}
 
-  pump@3.0.3:
+  pump@3.0.4:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
@@ -8893,7 +8893,7 @@ snapshots:
     dependencies:
       chownr: 1.1.4
       mkdirp-classic: 0.5.3
-      pump: 3.0.3
+      pump: 3.0.4
       tar-stream: 2.2.0
 
   tar-stream@2.2.0:

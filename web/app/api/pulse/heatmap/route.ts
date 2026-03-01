@@ -9,6 +9,7 @@ interface HeatmapPoint {
   intensity: number
   side: string
   timestamp: number
+  executionMode: 'direct' | 'unlink'
 }
 
 interface PulseStats {
@@ -20,6 +21,8 @@ interface PulseStats {
   totalVolume: number
   spikeIndicator: number
   globalComparison: string
+  zkPrivateCount: number
+  zkPrivatePct: number
 }
 
 // ─── Clusters near hackathon venue: 50 W 23rd St, Flatiron ─────────────
@@ -112,10 +115,13 @@ async function ensurePulseTable() {
       lng NUMERIC NOT NULL,
       timestamp_bucket BIGINT NOT NULL,
       wallet_hash TEXT NOT NULL DEFAULT 'anon',
+      execution_mode TEXT NOT NULL DEFAULT 'direct',
       created_at TIMESTAMP DEFAULT NOW()
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS idx_pulse_condition_ts ON pulse_trades(condition_id, timestamp_bucket)`.catch(() => {})
+  // Add execution_mode column if missing (existing tables)
+  await sql`ALTER TABLE pulse_trades ADD COLUMN IF NOT EXISTS execution_mode TEXT NOT NULL DEFAULT 'direct'`.catch(() => {})
   tableReady = true
 }
 
@@ -139,14 +145,14 @@ async function fetchRealData(conditionId?: string): Promise<{
 
     const rows = conditionId
       ? await sql`
-          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, created_at
+          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, execution_mode, created_at
           FROM pulse_trades
           WHERE condition_id = ${conditionId} AND timestamp_bucket > ${cutoff}
           ORDER BY created_at DESC
           LIMIT 500
         `
       : await sql`
-          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, created_at
+          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, execution_mode, created_at
           FROM pulse_trades
           WHERE timestamp_bucket > ${cutoff}
           ORDER BY created_at DESC
@@ -159,7 +165,6 @@ async function fetchRealData(conditionId?: string): Promise<{
     const points: HeatmapPoint[] = rows.map((r) => {
       const bucket = String(r.amount_bucket || '1-10')
       const midpoint = AMOUNT_MIDPOINT[bucket] || 5
-      // Intensity: $5 → 0.3, $30 → 0.5, $75 → 0.7, $150 → 1.0
       const intensity = Math.min(0.3 + (midpoint / 200), 1.0)
       return {
         lat: Number(r.lat),
@@ -167,6 +172,7 @@ async function fetchRealData(conditionId?: string): Promise<{
         intensity,
         side: String(r.side || 'Yes'),
         timestamp: Number(r.timestamp_bucket) || new Date(r.created_at).getTime(),
+        executionMode: (r.execution_mode === 'unlink' ? 'unlink' : 'direct') as 'direct' | 'unlink',
       }
     })
 
@@ -195,17 +201,23 @@ async function fetchRealData(conditionId?: string): Promise<{
     const avgPer5Min = rows.length / 24 // 2h = 24 five-min windows
     const spike = avgPer5Min > 0 ? recentCount / avgPer5Min : 1.0
 
+    // ZK privacy stats
+    const zkCount = rows.filter((r) => r.execution_mode === 'unlink').length
+    const zkPct = rows.length > 0 ? Math.round((zkCount / rows.length) * 100) : 0
+
     const stats: PulseStats = {
-      marketName: 'NBA: LAKERS vs SUNS',
+      marketName: 'NBA: KNICKS WIN FINALS',
       conditionId: conditionId || 'all',
-      teamA: { name: 'LAKERS', pct: teamAPct, price: teamAPct / 100 },
-      teamB: { name: 'SUNS', pct: teamBPct, price: teamBPct / 100 },
+      teamA: { name: 'YES', pct: teamAPct, price: teamAPct / 100 },
+      teamB: { name: 'NO', pct: teamBPct, price: teamBPct / 100 },
       activeTraders,
       totalVolume: Math.round(totalVolume),
       spikeIndicator: Math.round(spike * 10) / 10,
       globalComparison: activeTraders >= 5
-        ? `Local crowd is ${teamAPct}% Lakers. ${teamAPct > 50 ? 'Bullish' : 'Bearish'} vs global.`
+        ? `MSG crowd is ${teamAPct}% YES on Knicks. ${teamAPct > 50 ? 'Bullish' : 'Bearish'} vs global 4.5%.`
         : 'Not enough traders yet for sentiment breakdown.',
+      zkPrivateCount: zkCount,
+      zkPrivatePct: zkPct,
     }
 
     return { points, stats, source: 'db' }
@@ -245,6 +257,8 @@ export async function GET(request: NextRequest) {
       totalVolume: 0,
       spikeIndicator: 0,
       globalComparison: 'No trades yet. Be the first to share your sentiment.',
+      zkPrivateCount: 0,
+      zkPrivatePct: 0,
     },
     source: 'live',
     ts: Date.now(),

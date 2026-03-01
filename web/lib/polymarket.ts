@@ -203,7 +203,10 @@ function detectLeague(query: string): string | null {
   // Check longest matches first to avoid partial matches
   const sorted = Object.keys(LEAGUE_MAP).sort((a, b) => b.length - a.length)
   for (const key of sorted) {
-    if (q.includes(key)) return LEAGUE_MAP[key]
+    // Word boundary match to prevent false positives
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(?:^|\\s|\\b)${escaped}(?:$|\\s|\\b)`, 'i')
+    if (regex.test(q)) return LEAGUE_MAP[key]
   }
   return null
 }
@@ -212,12 +215,26 @@ function detectTeamLeague(query: string): { league: string; searchTerms: string[
   const q = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
   const sorted = Object.keys(TEAM_ENTRIES).sort((a, b) => b.length - a.length)
   for (const key of sorted) {
-    if (q.includes(key)) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(?:^|\\s|\\b)${escaped}(?:$|\\s|\\b)`, 'i')
+    if (regex.test(q)) {
       const entry = TEAM_ENTRIES[key]
       return { league: entry.league, searchTerms: entry.search }
     }
   }
   return null
+}
+
+function detectTopicTags(query: string): string[] {
+  const q = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+  const sorted = Object.keys(TOPIC_TAG_MAP).sort((a, b) => b.length - a.length)
+  for (const key of sorted) {
+    // Use word boundary matching to avoid false positives like "rain" matching "ai"
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(?:^|\\s|\\b)${escaped}(?:$|\\s|\\b)`, 'i')
+    if (regex.test(q)) return TOPIC_TAG_MAP[key]
+  }
+  return []
 }
 
 function parseEvent(event: Record<string, unknown>): EventInfo {
@@ -263,17 +280,201 @@ async function fetchEvents(params: URLSearchParams): Promise<EventInfo[]> {
   }
 }
 
+// Topic → Gamma tag_slug mapping (non-sports categories)
+// Verified slugs: crypto, economy, tariffs, politics, pop-culture, science, tech
+const TOPIC_TAG_MAP: Record<string, string[]> = {
+  // Crypto (tag: crypto)
+  'crypto': ['crypto'], 'bitcoin': ['crypto'], 'btc': ['crypto'],
+  'ethereum': ['crypto'], 'eth': ['crypto'], 'solana': ['crypto'],
+  'sol': ['crypto'], 'defi': ['crypto'], 'nft': ['crypto'],
+  'altcoin': ['crypto'], 'altcoins': ['crypto'], 'blockchain': ['crypto'],
+  'cripto': ['crypto'], 'criptomonedas': ['crypto'], 'moneda': ['crypto'],
+  'xrp': ['crypto'], 'ripple': ['crypto'], 'dogecoin': ['crypto'], 'doge': ['crypto'],
+  // Economy (tags: economy + tariffs when relevant)
+  'economy': ['economy'], 'fed': ['economy'], 'inflation': ['economy'], 'gdp': ['economy'],
+  'interest rate': ['economy'], 'recession': ['economy'],
+  'economia': ['economy'], 'inflacion': ['economy'], 'tasa de interes': ['economy'],
+  'stock market': ['economy'], 'bolsa': ['economy'],
+  // Tariffs (has its own dedicated tag!)
+  'tariff': ['tariffs', 'economy'], 'tariffs': ['tariffs', 'economy'],
+  'arancel': ['tariffs', 'economy'], 'aranceles': ['tariffs', 'economy'],
+  // Politics
+  'politics': ['politics'], 'politica': ['politics'], 'president': ['politics'],
+  'presidente': ['politics'], 'congress': ['politics'], 'senate': ['politics'],
+  'democrat': ['politics'], 'republican': ['politics'],
+  'democrata': ['politics'], 'republicano': ['politics'],
+  // Pop culture
+  'oscar': ['pop-culture'], 'oscars': ['pop-culture'], 'oscares': ['pop-culture'],
+  'grammy': ['pop-culture'], 'grammys': ['pop-culture'],
+  'emmy': ['pop-culture'], 'emmys': ['pop-culture'],
+  'celebrity': ['pop-culture'], 'celebridad': ['pop-culture'],
+  // Note: specific celebrity names (taylor swift, drake, etc.) are NOT mapped to tags
+  // because tag results would be too broad (all pop-culture events, not just that person).
+  // They work better through text matching against titles/questions.
+  // Science
+  'science': ['science'], 'ciencia': ['science'], 'space': ['science'],
+  'espacio': ['science'], 'nasa': ['science'], 'spacex': ['science'],
+  'alien': ['science'], 'ufo': ['science'],
+  // Tech
+  'tech': ['tech'], 'tecnologia': ['tech'], 'apple': ['tech'],
+  'google': ['tech'], 'microsoft': ['tech'], 'meta': ['tech'],
+  'ai': ['tech'], 'artificial intelligence': ['tech'],
+  'openai': ['tech'], 'chatgpt': ['tech'],
+}
+
+// BTC/ETH/SOL Up or Down 5-minute event detection
+// These events rotate every 5 min with slug pattern: btc-updown-5m-{epoch}
+// They have very low volume so they never appear in trending — must fetch directly.
+const UPDOWN_5M_PATTERNS: Record<string, { slugPrefix: string; coinName: string }> = {
+  'btc': { slugPrefix: 'btc-updown-5m', coinName: 'Bitcoin' },
+  'bitcoin': { slugPrefix: 'btc-updown-5m', coinName: 'Bitcoin' },
+  'eth': { slugPrefix: 'eth-updown-5m', coinName: 'Ethereum' },
+  'ethereum': { slugPrefix: 'eth-updown-5m', coinName: 'Ethereum' },
+  'sol': { slugPrefix: 'sol-updown-5m', coinName: 'Solana' },
+  'solana': { slugPrefix: 'sol-updown-5m', coinName: 'Solana' },
+  'xrp': { slugPrefix: 'xrp-updown-5m', coinName: 'XRP' },
+}
+
+// Detect "BTC 5m", "bitcoin up or down", "btc 5 minute", "eth up down", etc.
+function detectUpDown5m(query: string): string | null {
+  const q = query.toLowerCase().trim()
+  // Patterns that indicate user wants the 5-minute up/down market
+  const is5m = /\b(5\s*m(in(ute)?s?)?|cinco\s*min|5\s*minutos?)\b/i.test(q)
+  const isUpDown = /\b(up\s*(or|\/|and)?\s*down|sube\s*(o|y)?\s*baja|arriba\s*(o|y)?\s*abajo)\b/i.test(q)
+
+  if (!is5m && !isUpDown) return null
+
+  // Find which coin the user is asking about
+  for (const [keyword, info] of Object.entries(UPDOWN_5M_PATTERNS)) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(?:^|\\s|\\b)${escaped}(?:$|\\s|\\b)`, 'i')
+    if (regex.test(q)) return info.slugPrefix
+  }
+
+  // If just "5m" or "up or down" without coin, default to BTC
+  if (is5m || isUpDown) return 'btc-updown-5m'
+
+  return null
+}
+
+// Compute the current 5-minute slot epoch and fetch the active event
+async function fetchUpDown5mEvent(slugPrefix: string): Promise<EventInfo[]> {
+  // Slot epoch = UTC time rounded down to nearest 5-minute boundary
+  const nowSec = Math.floor(Date.now() / 1000)
+  const slotEpoch = nowSec - (nowSec % 300) // 300s = 5 min
+
+  // Try current slot + next 2 slots (in case current just expired)
+  const slugsToTry = [
+    `${slugPrefix}-${slotEpoch}`,
+    `${slugPrefix}-${slotEpoch + 300}`,    // next 5 min
+    `${slugPrefix}-${slotEpoch + 600}`,    // 10 min from now
+  ]
+
+  console.log(`[Search] Fetching Up/Down 5m: trying slugs ${slugsToTry.join(', ')}`)
+
+  // Try each slug until we find an active, non-closed event
+  for (const slug of slugsToTry) {
+    const events = await fetchEvents(new URLSearchParams({
+      slug, _limit: '1',
+    }))
+    if (events.length > 0 && events[0].slug) {
+      console.log(`[Search] Found Up/Down 5m: ${events[0].title}`)
+      return events
+    }
+  }
+
+  console.log(`[Search] No active Up/Down 5m event found for prefix ${slugPrefix}`)
+  return []
+}
+
 // Query expansion: short/ambiguous queries -> better search terms
 // This helps when users type abbreviations or colloquial terms
 const QUERY_EXPAND: Record<string, string[]> = {
+  // Crypto
   'btc': ['bitcoin'], 'eth': ['ethereum'], 'sol': ['solana'],
+  'bitcoin': ['bitcoin', 'btc'], 'ethereum': ['ethereum', 'eth'],
+  'btc 5m': ['bitcoin up or down'], 'btc 5 min': ['bitcoin up or down'],
+  'btc 5 minute': ['bitcoin up or down'], 'btc 5 minutes': ['bitcoin up or down'],
+  'bitcoin 5m': ['bitcoin up or down'], 'bitcoin 5 min': ['bitcoin up or down'],
+  'btc up or down': ['bitcoin up or down'], 'btc up down': ['bitcoin up or down'],
+  'eth 5m': ['ethereum up or down'], 'eth up or down': ['ethereum up or down'],
+  'sol 5m': ['solana up or down'], 'sol up or down': ['solana up or down'],
+  'xrp': ['xrp', 'ripple'], 'ada': ['cardano'], 'doge': ['dogecoin'],
+  'matic': ['polygon'], 'avax': ['avalanche'], 'dot': ['polkadot'],
+  'link': ['chainlink'], 'uni': ['uniswap'],
+  // People
   'trump': ['trump'], 'biden': ['biden'], 'elon': ['elon', 'musk', 'tesla'],
-  'ai': ['artificial intelligence', 'openai', 'chatgpt'],
+  'musk': ['musk', 'elon', 'tesla'], 'vitalik': ['ethereum', 'vitalik'],
+  'zuck': ['zuckerberg', 'meta'], 'zuckerberg': ['zuckerberg', 'meta'],
+  // AI
+  'ai': ['artificial intelligence', 'openai', 'chatgpt', 'ai model'],
+  'openai': ['openai', 'chatgpt', 'gpt'], 'chatgpt': ['chatgpt', 'openai'],
+  'claude': ['anthropic', 'claude'], 'gemini ai': ['gemini', 'google ai'],
+  // Politics/Events
   'war': ['war', 'military', 'strike', 'invasion'],
-  'election': ['election', 'president', 'vote'],
+  'election': ['election', 'president', 'vote', 'nominee'],
   'eleccion': ['election', 'president'], 'elecciones': ['election'],
+  'oscar': ['oscar', 'academy award', 'best picture'],
+  'oscars': ['oscar', 'academy award', 'best picture'],
+  'oscares': ['oscar', 'academy award'], 'academia': ['academy award'],
+  'superbowl': ['super bowl', 'nfl'], 'super bowl': ['super bowl', 'nfl'],
+  'grammy': ['grammy', 'grammys'], 'grammys': ['grammy'],
+  'world cup': ['world cup', 'fifa'], 'mundial': ['world cup', 'fifa'],
+  // Economy
+  'fed': ['fed', 'federal reserve', 'interest rate'],
+  'recession': ['recession', 'gdp', 'economy'],
+  'inflation': ['inflation', 'cpi', 'price'],
+  'tariff': ['tariff', 'trade war'], 'tariffs': ['tariff', 'trade war'],
+  // Countries
   'mexico': ['mexico', 'mexican'], 'usa': ['united states', 'america'],
+  'china': ['china', 'chinese'], 'russia': ['russia', 'russian', 'ukraine'],
+  'ukraine': ['ukraine', 'russia'], 'iran': ['iran', 'iranian'],
+  'israel': ['israel', 'gaza', 'palestine'], 'gaza': ['gaza', 'israel'],
+  // Entertainment
+  'taylor swift': ['taylor swift'], 'drake': ['drake'],
+  'beyonce': ['beyonce'], 'rihanna': ['rihanna'],
+  'netflix': ['netflix'], 'disney': ['disney'],
+  'marvel': ['marvel'], 'star wars': ['star wars'],
+  // Weather/Science
+  'rain': ['weather', 'rain', 'temperature'],
+  'lluvia': ['weather', 'rain'], 'clima': ['weather'],
+  'earthquake': ['earthquake', 'seismic'], 'terremoto': ['earthquake'],
+  'hurricane': ['hurricane', 'storm'], 'huracan': ['hurricane'],
+  // Spanish common queries
+  'quien gana': ['winner', 'champion'],
+  'quien ganara': ['winner', 'champion'],
+  'campeon': ['champion', 'winner'],
+  'ganador': ['winner'],
+  'precio': ['price'],
 }
+
+// Detect gibberish / nonsensical queries that won't match anything
+function isGibberish(query: string): boolean {
+  const q = query.toLowerCase().trim()
+  // Too short (single char)
+  if (q.length <= 1) return true
+  // Check consonant-only strings (no vowels = likely gibberish)
+  const stripped = q.replace(/\s+/g, '')
+  if (stripped.length >= 4 && !/[aeiouáéíóúy]/i.test(stripped)) return true
+  // Repeating chars (aaaa, xxxx)
+  if (/(.)\1{3,}/.test(stripped)) return true
+  return false
+}
+
+// Stop words that are too common to be meaningful for matching
+const STOP_WORDS = new Set([
+  'will', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'can', 'could', 'would', 'should',
+  'may', 'might', 'shall', 'must', 'it', 'its', 'this', 'that', 'these', 'those',
+  'what', 'which', 'who', 'whom', 'how', 'when', 'where', 'why',
+  'and', 'but', 'or', 'nor', 'not', 'so', 'yet', 'for', 'with', 'from',
+  'into', 'onto', 'upon', 'about', 'above', 'below', 'between', 'through',
+  'during', 'before', 'after', 'of', 'at', 'by', 'on', 'in', 'to', 'up',
+  // Spanish
+  'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'que', 'como',
+  'por', 'para', 'con', 'sin', 'sobre', 'entre', 'hay', 'ser', 'estar',
+  'del', 'al', 'es', 'son', 'fue', 'era', 'va',
+])
 
 // Score how well an event title matches a query (0 = no match)
 function scoreMatch(title: string, query: string): number {
@@ -281,17 +482,27 @@ function scoreMatch(title: string, query: string): number {
   const q = query.toLowerCase().trim()
   const words = q.split(/\s+/).filter(w => w.length > 1)
 
-  // Exact query in title = best match
-  if (t.includes(q)) return 100
+  if (words.length === 0) return 0
 
-  // All words present
-  const allPresent = words.every(w => t.includes(w))
-  if (allPresent) return 80
+  // Exact multi-word query in title = best match
+  if (q.length > 3 && t.includes(q)) return 100
 
-  // Count matching words
-  const matchCount = words.filter(w => t.includes(w)).length
-  if (matchCount === 0) return 0
-  return (matchCount / words.length) * 60
+  // Filter out stop words — these match everything and cause false positives
+  const meaningfulWords = words.filter(w => w.length >= 3 && !STOP_WORDS.has(w))
+  if (meaningfulWords.length === 0) return 0
+
+  // For multi-word queries (like "taylor swift"), require ALL meaningful words to match
+  // to prevent false positives like "Marjorie Taylor Greene" matching "taylor swift"
+  if (meaningfulWords.length >= 2) {
+    const allPresent = meaningfulWords.every(w => t.includes(w))
+    return allPresent ? 80 : 0
+  }
+
+  // Single meaningful word — require exact word match (not substring)
+  // e.g. "rain" should not match "training"
+  const word = meaningfulWords[0]
+  const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+  return wordRegex.test(t) ? 60 : 0
 }
 
 export async function searchMarkets(query: string, limit = 10): Promise<EventInfo[]> {
@@ -303,6 +514,16 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
       _limit: String(limit), active: 'true', closed: 'false',
       order: 'volume24hr', ascending: 'false',
     }))
+  }
+
+  // 0. Check for BTC/ETH/SOL Up/Down 5-minute markets
+  //    These rotate every 5 min with dynamic slugs and never appear in trending.
+  const updown5mPrefix = detectUpDown5m(query)
+  if (updown5mPrefix) {
+    console.log(`[Search] Path: Up/Down 5m, prefix="${updown5mPrefix}"`)
+    const events = await fetchUpDown5mEvent(updown5mPrefix)
+    if (events.length > 0) return events.slice(0, limit)
+    // Fall through to general search if no active 5m event found
   }
 
   // 1. Check if query maps to a sports league ("liga mx", "nba", "f1")
@@ -445,47 +666,135 @@ export async function searchMarkets(query: string, limit = 10): Promise<EventInf
     return allEvents.slice(0, limit)
   }
 
-  // 3. Smart general search: fetch large pool + Gamma title search in parallel
-  //    (Gamma API title search is unreliable alone, so we combine strategies)
-  const qNorm = query.toLowerCase().trim()
+  // 3. Smart general search — multi-strategy approach
+  //    Gamma API ignores text params (title, q, question_contains all broken).
+  //    Strategy: detect topic → fetch by tag, then score results against query.
+  //    If no tag matches, score against top trending as last resort.
+
+  const qNorm = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+
+  // Reject gibberish early
+  if (isGibberish(qNorm)) {
+    console.log(`[Search] Rejected gibberish query: "${query}"`)
+    return []
+  }
+
+  // Build expanded search terms from our dictionary
   const expanded = QUERY_EXPAND[qNorm]
   const searchTerms = expanded ? [query, ...expanded] : [query]
+  // Also expand individual words for multi-word queries
+  const queryWords = qNorm.split(/\s+/).filter(w => w.length > 2)
+  for (const w of queryWords) {
+    const wordExpansion = QUERY_EXPAND[w]
+    if (wordExpansion) searchTerms.push(...wordExpansion)
+  }
+  // Dedupe
+  const uniqueTerms = [...new Set(searchTerms.map(t => t.toLowerCase()))]
 
-  // Gamma API caps at 20 results per page. Title param is unreliable (ignored).
-  // Fetch top 20 trending events by volume
-  const pool = await fetchEvents(new URLSearchParams({
+  console.log(`[Search] Path: general, terms=${JSON.stringify(uniqueTerms)}`)
+
+  // Detect topic tags for more targeted fetch
+  const topicTags = detectTopicTags(qNorm)
+  console.log(`[Search] Topic tags: ${topicTags.length > 0 ? topicTags.join(', ') : 'none'}`)
+
+  // Fetch events from multiple sources in parallel
+  const fetchPromises: Promise<EventInfo[]>[] = []
+
+  // Always fetch top trending (base pool)
+  fetchPromises.push(fetchEvents(new URLSearchParams({
     _limit: '20', active: 'true', closed: 'false',
     order: 'volume24hr', ascending: 'false',
-  }))
+  })))
 
-  // Score each event against all search terms, take best score
+  // Fetch from each detected topic tag
+  for (const tag of topicTags) {
+    fetchPromises.push(fetchEvents(new URLSearchParams({
+      _limit: '20', active: 'true', closed: 'false',
+      tag_slug: tag, order: 'volume24hr', ascending: 'false',
+    })))
+  }
+
+  const results = await Promise.all(fetchPromises)
+
+  // Merge and dedupe all fetched events, tracking which came from topic tags
+  const seen = new Set<string>()
+  const pool: EventInfo[] = []
+  const taggedSlugs = new Set<string>() // events from topic tag fetches
+
+  // First batch is always the trending pool
+  for (const e of results[0] || []) {
+    if (!seen.has(e.slug)) {
+      seen.add(e.slug)
+      pool.push(e)
+    }
+  }
+
+  // Remaining batches are from topic tags — mark them
+  for (let i = 1; i < results.length; i++) {
+    for (const e of results[i] || []) {
+      if (!seen.has(e.slug)) {
+        seen.add(e.slug)
+        pool.push(e)
+      }
+      taggedSlugs.add(e.slug)
+    }
+  }
+
+  console.log(`[Search] Pool size: ${pool.length} events (${results.map(r => r.length).join(' + ')} sources), tagged: ${taggedSlugs.size}`)
+
+  // Score each event against ALL search terms, take best score
   const scored = pool.map(event => {
-    const best = Math.max(...searchTerms.map(term => scoreMatch(event.title, term)))
+    const best = Math.max(...uniqueTerms.map(term => scoreMatch(event.title, term)))
     // Also check market questions inside the event
     const marketScore = Math.max(0, ...event.markets.map(m =>
-      Math.max(...searchTerms.map(term => scoreMatch(m.question, term)))
+      Math.max(...uniqueTerms.map(term => scoreMatch(m.question, term)))
     ))
-    return { event, score: Math.max(best, marketScore) }
+    let score = Math.max(best, marketScore)
+
+    // If the event came from a topic tag fetch and has no text match,
+    // give it a base relevance score (the tag IS the match).
+    // e.g. "crypto" query → crypto tag → Bitcoin events ARE relevant
+    if (score === 0 && taggedSlugs.has(event.slug)) {
+      score = 25 // Below text-match scores but above threshold
+    }
+
+    return { event, score }
   })
 
-  const matched = scored
-    .filter(s => s.score > 0)
+  // Two-tier scoring:
+  // 1. Text-matched results (score >= 60) — the query text actually appears in the title
+  // 2. Tag-matched results (score = 25) — only if NO text matches exist
+  const TEXT_MATCH_SCORE = 40
+  const TAG_MATCH_SCORE = 25
+
+  const textMatched = scored
+    .filter(s => s.score >= TEXT_MATCH_SCORE)
     .sort((a, b) => b.score - a.score || b.event.volume - a.event.volume)
     .map(s => s.event)
     .slice(0, limit)
 
-  if (matched.length > 0) return matched
-
-  // 4. Last resort: try broader Gamma search with individual words
-  const words = query.split(/\s+/).filter(w => w.length > 2)
-  if (words.length > 0) {
-    const lastResort = await fetchEvents(new URLSearchParams({
-      _limit: String(limit), active: 'true', closed: 'false',
-      title: words[0], order: 'volume24hr', ascending: 'false',
-    }))
-    if (lastResort.length > 0) return lastResort
+  if (textMatched.length > 0) {
+    console.log(`[Search] Text-matched: ${textMatched.length} events`)
+    scored.filter(s => s.score >= TEXT_MATCH_SCORE).slice(0, 5).forEach(s =>
+      console.log(`  [${s.score}] ${s.event.title}`)
+    )
+    return textMatched
   }
 
+  // No text matches — fall back to tag-matched results (sorted by volume)
+  const tagMatched = scored
+    .filter(s => s.score >= TAG_MATCH_SCORE)
+    .sort((a, b) => b.event.volume - a.event.volume)  // By volume since all scores are equal
+    .map(s => s.event)
+    .slice(0, limit)
+
+  console.log(`[Search] Tag-matched: ${tagMatched.length} events (no text matches)`)
+  if (tagMatched.length > 0) {
+    return tagMatched
+  }
+
+  // No matches found — return empty instead of random trending
+  console.log(`[Search] No relevant results for "${query}"`)
   return []
 }
 
