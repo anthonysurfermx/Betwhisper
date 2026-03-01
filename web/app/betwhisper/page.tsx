@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
-import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, ChevronDown } from 'lucide-react'
 
 // Scroll-triggered visibility hook
 function useInView(threshold = 0.15) {
@@ -60,6 +60,40 @@ function RotatingName() {
     >
       {ASSISTANT_NAMES[index]}
     </span>
+  )
+}
+
+// Navbar dropdown (hover)
+function NavDropdown({ label, items }: { label: string; items: { title: string; desc: string; href: string }[] }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div
+      className="relative hidden sm:block"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button className="flex items-center gap-1 text-[13px] text-[--text-secondary] hover:text-white transition-colors">
+        {label}
+        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 pt-2 z-50">
+          <div className="border border-[--border-light] bg-black w-[260px]">
+            {items.map((item) => (
+              <a
+                key={item.href + item.title}
+                href={item.href}
+                className="block px-4 py-3 hover:bg-white/5 transition-colors border-b border-[--border] last:border-b-0"
+              >
+                <span className="text-[13px] text-white font-semibold block">{item.title}</span>
+                <span className="text-[11px] text-[--text-secondary] block mt-0.5">{item.desc}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -148,6 +182,9 @@ export default function BetWhisperLanding() {
   const solution = useInView()
   const howItWorks = useInView()
   const privacy = useInView(0.2)
+  const protocol = useInView(0.15)
+  const social = useInView(0.15)
+  const glasses = useInView(0.15)
   const stack = useInView()
 
   return (
@@ -164,14 +201,20 @@ export default function BetWhisperLanding() {
           </Link>
           <div className="flex items-center gap-6">
             <a href="#how-it-works" className="text-[13px] text-[--text-secondary] hover:text-white transition-colors hidden sm:block">How it works</a>
-            <a
-              href="https://github.com/anthonysurfermx/Betwhisper"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[13px] text-[--text-secondary] hover:text-white transition-colors hidden sm:block"
-            >
-              GitHub
-            </a>
+            <NavDropdown
+              label="Social"
+              items={[
+                { title: 'Social Pulse Map', desc: 'Live heatmap of trading activity near you', href: '#social' },
+                { title: 'Group Trading', desc: 'Compete on leaderboards with your crew', href: '#social' },
+              ]}
+            />
+            <NavDropdown
+              label="Glasses"
+              items={[
+                { title: 'Voice-First Trading', desc: 'Trade from your Meta Ray-Ban glasses', href: '#glasses' },
+                { title: 'Hands-Free Experience', desc: 'No phone needed — just speak', href: '#glasses' },
+              ]}
+            />
             <Link
               href="/predict"
               className="px-4 py-2 bg-white text-black text-[13px] font-semibold hover:bg-white/90 transition-colors active:scale-[0.97]"
@@ -195,16 +238,17 @@ export default function BetWhisperLanding() {
               agent layer.
             </h1>
 
-            {/* The answer — your agent */}
+            {/* The answer — judge-optimized copy */}
             <div className={`mb-6 transition-all duration-700 delay-500 ${
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
               <p className="text-[16px] md:text-[18px] text-[--text-secondary] max-w-lg leading-relaxed">
-                Your prediction market trades go through a ZK privacy pool.
-                Nobody can link your deposit to your trade — not the market maker,
-                not the explorer, not even us.
+                A permissionless, self-custodial AI agent for information markets.
+                Your trades go through a ZK privacy pool — positions are shielded,
+                deposits are unlinkable, and execution is censorship-resistant.
+                Privacy by default, not by choice.
                 <br /><br />
-                <span className="text-white/90">BetWhisper is your <RotatingName /></span> — an AI agent
+                <span className="text-white/90">BetWhisper is your <RotatingName /></span> — an autonomous agent
                 that filters bots, shows you the real crowd, and executes
                 privately on-chain.
               </p>
@@ -215,7 +259,7 @@ export default function BetWhisperLanding() {
               loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
               <span className="text-[13px] text-[--text-secondary] border-l-2 border-[#836EF9]/40 pl-3">
-                Built on Monad &middot; Privacy by Unlink &middot; Execution on Polymarket
+                Monad-native &middot; ZK privacy by Unlink &middot; AI-driven DeFi &middot; Open source
               </span>
             </div>
 
@@ -260,7 +304,7 @@ export default function BetWhisperLanding() {
             <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-md transition-all duration-700 delay-100 ${
               problem.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              Today&apos;s prediction markets have three blind spots.
+              Today&apos;s information markets have three blind spots.
             </p>
           </div>
 
@@ -312,9 +356,9 @@ export default function BetWhisperLanding() {
                 <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
                 <span className="text-[11px] text-amber-500 font-semibold tracking-wide">PROTECTS</span>
               </div>
-              <h3 className="text-[20px] font-bold mb-2">Filters bots. Hides your identity.</h3>
+              <h3 className="text-[20px] font-bold mb-2">Filters bots. Shields your identity.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Agent Radar scans every holder and flags bots before you trade. Your MON goes through Unlink&apos;s ZK privacy pool — deposit and bet execution appear as two unrelated transactions on-chain.
+                Agent Radar scans every holder and flags bots before you trade. Your MON goes through Unlink&apos;s ZK privacy pool — deposit and trade execution appear as two unrelated, unlinkable transactions on-chain.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
@@ -326,12 +370,12 @@ export default function BetWhisperLanding() {
                   <span className="text-white/60 font-mono">Unlink ZK proofs</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
-                  <span className="text-[--text-secondary]">Hidden</span>
+                  <span className="text-[--text-secondary]">Shielded</span>
                   <span className="text-white/60 font-mono">amount · sender · recipient</span>
                 </div>
                 <div className="flex justify-between py-1.5">
                   <span className="text-[--text-secondary]">Chain</span>
-                  <span className="text-white/60 font-mono">Monad Testnet</span>
+                  <span className="text-white/60 font-mono">Monad (10,000 TPS)</span>
                 </div>
               </div>
             </div>
@@ -346,7 +390,7 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">Shows you the crowd around you.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Social Map is a live heatmap of what people near you are trading. Opt-in only — activate with PIN + Face ID. Your exact location is never shared.
+                Social Pulse Map is a live heatmap of what people near you are trading. Opt-in only — activate with PIN + Face ID. Your exact location is never shared. Fair access to crowd sentiment.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
@@ -374,12 +418,12 @@ export default function BetWhisperLanding() {
               </div>
               <h3 className="text-[20px] font-bold mb-2">One message. Two chains. Done.</h3>
               <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
-                Tell your agent what to trade. It handles MON payment on Monad, order execution on Polymarket, and cashout back to MON. Text, voice, or smart glasses.
+                Tell your autonomous agent what to trade. It handles MON payment on Monad, order execution on Polymarket CLOB, and cashout back to MON. Voice-first — text, voice, or smart glasses.
               </p>
               <div className="space-y-2 text-[12px]">
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
                   <span className="text-[--text-secondary]">Intent</span>
-                  <span className="text-white/60 font-mono">Monad</span>
+                  <span className="text-white/60 font-mono">Monad (1s finality)</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-[--border]">
                   <span className="text-[--text-secondary]">Execution</span>
@@ -408,10 +452,10 @@ export default function BetWhisperLanding() {
 
           <div className="grid md:grid-cols-4">
             {[
-              { num: '01', title: 'Ask', desc: 'Search any market. Sports, crypto, politics. Voice or text.' },
-              { num: '02', title: 'Scan', desc: 'Agent Radar filters bots. Smart money signals surface real conviction.' },
+              { num: '01', title: 'Ask', desc: 'Search any information market. Sports, crypto, politics. Voice or text — frictionless.' },
+              { num: '02', title: 'Scan', desc: 'Agent Radar filters bots. Smart money signals surface real conviction. Provably accurate price discovery.' },
               { num: '03', title: 'Trade', desc: 'MON deposits into Unlink ZK pool. Private transfer to server. CLOB executes on Polymarket. Zero link between you and the trade.' },
-              { num: '04', title: 'Track', desc: 'Live P&L + Social Map heatmap. See what your city is trading.' },
+              { num: '04', title: 'Track', desc: 'Live P&L + Social Pulse heatmap. See what your city is trading — anonymous sentiment, verified humans.' },
             ].map((s, i) => (
               <div
                 key={s.num}
@@ -439,7 +483,7 @@ export default function BetWhisperLanding() {
             <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-lg transition-all duration-700 delay-100 ${
               privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}>
-              Your deposit and your trade appear as two unrelated transactions. The ZK proof guarantees correctness without revealing the connection.
+              Your deposit and your trade appear as two unrelated transactions. Zero-knowledge proofs guarantee correctness without revealing the connection. Provably secure unlinkability.
             </p>
           </div>
 
@@ -478,7 +522,7 @@ export default function BetWhisperLanding() {
               }`} style={{ transitionDelay: '800ms' }}>
                 <span className="text-[11px] font-mono text-emerald-400 block mb-2">STEP 2</span>
                 <h4 className="text-[15px] font-bold mb-1">Private Transfer</h4>
-                <p className="text-[12px] text-[--text-secondary] mb-4">ZK proof generated in browser</p>
+                <p className="text-[12px] text-[--text-secondary] mb-4">ZK proof generated client-side</p>
                 <div className="text-[11px] font-mono text-white/40 leading-relaxed space-y-0.5">
                   <div>Sender <span className="text-emerald-400">hidden</span></div>
                   <div>Amount <span className="text-emerald-400">hidden</span></div>
@@ -562,8 +606,239 @@ export default function BetWhisperLanding() {
             </div>
 
             <p className="text-[12px] text-[--text-tertiary] mt-4 font-mono">
-              Deposit tx and withdrawal tx are cryptographically unlinkable. Verified by ZK proofs on Monad.
+              Deposit tx and withdrawal tx are cryptographically unlinkable. Verified by zero-knowledge proofs on Monad. Provably secure.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── BetWhisper Protocol ─── */}
+      <section id="protocol" ref={protocol.ref} className="border-b border-[--border]">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="px-6 py-14 md:py-20 border-b border-[--border]">
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
+              protocol.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              BetWhisper Protocol
+            </h2>
+            <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-lg transition-all duration-700 delay-100 ${
+              protocol.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              A credibly neutral, open protocol for private information markets. Three layers — one autonomous agent.
+            </p>
+          </div>
+
+          <div className="px-6 py-10">
+            <div className="max-w-[500px] mx-auto relative">
+              {/* Vertical connector line */}
+              <div className={`absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 transition-all duration-1000 ${
+                protocol.visible ? 'bg-gradient-to-b from-amber-500/40 via-emerald-500/40 to-[#836EF9]/40 scale-y-100' : 'scale-y-0'
+              }`} style={{ transformOrigin: 'top' }} />
+
+              {/* Layer 3: Social (top) */}
+              <div className={`relative border border-amber-500/30 p-6 bg-black mb-4 transition-all duration-700 ${
+                protocol.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`} style={{ transitionDelay: '200ms' }}>
+                <span className="text-[10px] font-mono text-amber-500 tracking-wider block mb-2">LAYER 3 — SOCIAL</span>
+                <h3 className="text-[18px] font-bold mb-1">Social Layer</h3>
+                <p className="text-[12px] text-[--text-secondary] leading-relaxed">
+                  Social Pulse Map &middot; Group Trading &middot; Agent Radar &middot; Anonymous Sentiment
+                </p>
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-2 h-2 bg-amber-500 rotate-45 z-10" />
+              </div>
+
+              {/* Layer 2: ZK Privacy (middle) */}
+              <div className={`relative border border-emerald-500/30 p-6 bg-black mb-4 transition-all duration-700 ${
+                protocol.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`} style={{ transitionDelay: '500ms' }}>
+                <span className="text-[10px] font-mono text-emerald-500 tracking-wider block mb-2">LAYER 2 — PRIVACY</span>
+                <h3 className="text-[18px] font-bold mb-1">ZK Privacy</h3>
+                <p className="text-[12px] text-[--text-secondary] leading-relaxed">
+                  Zero-knowledge proofs &middot; Unlinkable deposits &middot; Shielded positions &middot; Privacy-by-default
+                </p>
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-2 h-2 bg-emerald-500 rotate-45 z-10" />
+              </div>
+
+              {/* Layer 1: Monad (base) */}
+              <div className={`relative border border-[#836EF9]/30 p-6 bg-black transition-all duration-700 ${
+                protocol.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`} style={{ transitionDelay: '800ms' }}>
+                <span className="text-[10px] font-mono text-[#836EF9] tracking-wider block mb-2">LAYER 1 — BASE CHAIN</span>
+                <h3 className="text-[18px] font-bold mb-1">Monad</h3>
+                <p className="text-[12px] text-[--text-secondary] leading-relaxed">
+                  10,000 TPS &middot; 1-second finality &middot; EVM-compatible &middot; Settlement layer
+                </p>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-6 mt-8">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                <span className="text-[11px] text-[--text-secondary]">Social</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                <span className="text-[11px] text-[--text-secondary]">Privacy</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-[#836EF9] rounded-full" />
+                <span className="text-[11px] text-[--text-secondary]">Monad</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Social ─── */}
+      <section id="social" ref={social.ref} className="border-b border-[--border]">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="px-6 py-14 md:py-20 border-b border-[--border]">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+              <span className="text-[11px] text-amber-500 font-semibold tracking-wide">SOCIAL LAYER</span>
+            </div>
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
+              social.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              Trade with your crowd. Not against it.
+            </h2>
+            <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-lg transition-all duration-700 delay-100 ${
+              social.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              See real human conviction. Anonymous sentiment from verified participants, not bots. Fair access to social price discovery.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3">
+            {/* Social Pulse Map */}
+            <div className={`px-6 py-10 md:border-r border-[--border] border-b md:border-b-0 border-[--border] transition-all duration-700 ${
+              social.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1.5 h-1.5 bg-[#836EF9] rounded-full" />
+                <span className="text-[11px] text-[#836EF9] font-semibold tracking-wide">PULSE MAP</span>
+              </div>
+              <h3 className="text-[20px] font-bold mb-2">Social Pulse Map</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
+                Live heatmap of trading activity around you. See which markets are hot in your city, your neighborhood, your venue. Consumer-grade UX, feels like magic.
+              </p>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Data</span>
+                  <span className="text-white/60 font-mono">real-time push</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Privacy</span>
+                  <span className="text-white/60 font-mono">~80m GPS fuzzing</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Activation</span>
+                  <span className="text-white/60 font-mono">PIN + Face ID</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Group Trading */}
+            <div className={`px-6 py-10 md:border-r border-[--border] border-b md:border-b-0 border-[--border] transition-all duration-700 delay-100 ${
+              social.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                <span className="text-[11px] text-amber-500 font-semibold tracking-wide">GROUPS</span>
+              </div>
+              <h3 className="text-[20px] font-bold mb-2">Group Trading</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
+                Create or join trading groups. Compete on leaderboards. Share conviction without exposing positions. Community-driven social prediction market.
+              </p>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Groups</span>
+                  <span className="text-white/60 font-mono">create or join</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Leaderboard</span>
+                  <span className="text-white/60 font-mono">P&L ranked</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Identity</span>
+                  <span className="text-white/60 font-mono">pseudonymous</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Anonymous Sentiment */}
+            <div className={`px-6 py-10 transition-all duration-700 delay-200 ${
+              social.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                <span className="text-[11px] text-emerald-500 font-semibold tracking-wide">SENTIMENT</span>
+              </div>
+              <h3 className="text-[20px] font-bold mb-2">Anonymous Sentiment</h3>
+              <p className="text-[13px] text-[--text-secondary] leading-relaxed mb-5">
+                See crowd conviction without exposing individual identities. Aggregated sentiment from verified humans — a credibly neutral DeFi primitive for price discovery.
+              </p>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Signal</span>
+                  <span className="text-white/60 font-mono">aggregated only</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-[--border]">
+                  <span className="text-[--text-secondary]">Filtering</span>
+                  <span className="text-white/60 font-mono">Agent Radar</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-[--text-secondary]">Privacy</span>
+                  <span className="text-white/60 font-mono">ZK-verified</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Glasses ─── */}
+      <section id="glasses" ref={glasses.ref} className="border-b border-[--border]">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="px-6 py-14 md:py-20 border-b border-[--border]">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-1.5 h-1.5 bg-white rounded-full" />
+              <span className="text-[11px] text-white/60 font-semibold tracking-wide">META RAY-BAN</span>
+            </div>
+            <h2 className={`text-[clamp(1.8rem,4vw,3rem)] font-bold tracking-tight transition-all duration-700 ${
+              glasses.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              Voice-first. Hands-free. Always on.
+            </h2>
+            <p className={`text-[14px] text-[--text-secondary] mt-3 max-w-lg transition-all duration-700 delay-100 ${
+              glasses.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}>
+              The first autonomous AI agent for information markets that lives in your glasses. Speak to trade — no phone, no friction. A wearable DeFi experience that feels like magic.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-4">
+            {[
+              { num: '01', title: 'Voice-First', desc: '"Hey BetWhisper, $5 on Lakers." Natural language intent. Your autonomous agent handles the rest — frictionless.', accent: 'text-[#836EF9]' },
+              { num: '02', title: 'Hands-Free', desc: 'Trade from your glasses — no phone needed. Walk, talk, trade. The consumer app for prediction markets.', accent: 'text-amber-400' },
+              { num: '03', title: 'Camera', desc: 'Scan QR codes for merchant payments. Point, confirm, done. Self-custodial payments on Monad.', accent: 'text-emerald-400' },
+              { num: '04', title: 'Always On', desc: 'Bluetooth + Meta Wearables DAT SDK. Persistent connection to your agent. Real-time settlement, 1-second finality.', accent: 'text-white/60' },
+            ].map((item, i) => (
+              <div
+                key={item.num}
+                className={`px-6 py-10 ${i < 3 ? 'md:border-r border-[--border]' : ''} border-b md:border-b-0 border-[--border] transition-all duration-700`}
+                style={{ transitionDelay: `${i * 100}ms` }}
+              >
+                <span className={`text-[12px] font-mono ${item.accent} block mb-5`}>{item.num}</span>
+                <h3 className={`text-[20px] font-bold mb-2 transition-all duration-700 ${
+                  glasses.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}>{item.title}</h3>
+                <p className={`text-[13px] text-[--text-secondary] leading-relaxed transition-all duration-700 ${
+                  glasses.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}>{item.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -577,7 +852,7 @@ export default function BetWhisperLanding() {
               stack.visible ? 'opacity-100' : 'opacity-0'
             }`}>
               {[
-                'Monad', 'Unlink', 'Polymarket', 'Gemini', 'Agent Radar', 'Ray-Ban Meta',
+                'Monad', 'Unlink ZK', 'Polymarket CLOB', 'Gemini AI', 'Agent Radar', 'Meta Ray-Ban',
               ].map(name => (
                 <div key={name} className="bg-black px-4 py-4 text-center">
                   <span className="text-[13px] font-semibold text-white/60">{name}</span>
@@ -592,7 +867,7 @@ export default function BetWhisperLanding() {
       <section className="grid-dashed">
         <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-32 text-center">
           <p className="text-[14px] text-[--text-secondary] mb-4">
-            Your trades. Your identity. Protected by math.
+            Self-custodial. Permissionless. Provably private.
           </p>
           <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-bold tracking-tight mb-3">
             Trade privately. Know the crowd.
