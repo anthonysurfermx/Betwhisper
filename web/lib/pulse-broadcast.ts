@@ -13,6 +13,8 @@ export interface PulseTradeEvent {
   conditionId: string
   timestamp: number
   executionMode?: 'direct' | 'unlink'
+  marketName?: string
+  walletHash?: string
 }
 
 type PulseListener = (event: PulseTradeEvent) => void

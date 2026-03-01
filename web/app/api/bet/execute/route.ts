@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeClobBet, getUSDCBalance } from '@/lib/polymarket-clob'
 import { verifyMonadPayment } from '@/lib/monad-bet'
 import { verifyUnlinkTransfer } from '@/lib/unlink-server'
-import { MON_TOKEN } from '@/lib/constants'
+import { MON_TOKEN, UNLINK_USDC } from '@/lib/constants'
 import { MAX_BET_USD, POLYGON_EXPLORER, DAILY_SPEND_LIMIT_USD, PAYMENT_TOLERANCE, RATE_LIMIT_PER_MINUTE } from '@/lib/constants'
 import { sql } from '@/lib/db'
 import { pulseBroadcaster } from '@/lib/pulse-broadcast'
@@ -116,9 +116,21 @@ export async function POST(request: NextRequest) {
     const fuzzLng = parseFloat(lng) + (Math.random() - 0.5) * 0.0018
 
     const execMode = body.executionMode === 'unlink' ? 'unlink' : 'direct'
+    // Derive readable market name from slug: "nba-sac-lal-2026-03-01" → "NBA: SAC vs LAL"
+    const marketNameFromSlug = marketSlug
+      ? marketSlug.replace(/-/g, ' ').replace(/\d{4}.*/, '').trim().toUpperCase().replace(/\s+/g, ' ')
+      : 'Unknown Market'
+    const displayMarketName = marketNameFromSlug.includes(' ')
+      ? (() => {
+          const parts = marketNameFromSlug.split(' ')
+          if (parts.length >= 3) return `${parts[0]}: ${parts[1]} vs ${parts[2]}`
+          return marketNameFromSlug
+        })()
+      : marketNameFromSlug
+
     sql`
-      INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash, execution_mode)
-      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${fuzzLat}, ${fuzzLng}, ${tsBucket}, ${walletHash}, ${execMode})
+      INSERT INTO pulse_trades (condition_id, side, amount_bucket, lat, lng, timestamp_bucket, wallet_hash, execution_mode, market_name)
+      VALUES (${conditionId}, ${pulseSide}, ${bucket}, ${fuzzLat}, ${fuzzLng}, ${tsBucket}, ${walletHash}, ${execMode}, ${displayMarketName})
     `.catch((e: unknown) => console.error('[Pulse] Failed to save trade:', e instanceof Error ? e.message : e))
 
     // Broadcast to all connected SSE clients — instant heatmap update (fuzzed location)
@@ -127,6 +139,8 @@ export async function POST(request: NextRequest) {
       side: pulseSide, amountBucket: bucket,
       conditionId, timestamp: Date.now(),
       executionMode: execMode,
+      marketName: displayMarketName,
+      walletHash,
     })
   }
 
@@ -205,8 +219,15 @@ export async function POST(request: NextRequest) {
     // Server syncs wallet, lists received notes, and matches by txHash + amount + token
     try {
       const parsedAmount = unlinkAmount ? BigInt(Math.floor(parseFloat(unlinkAmount) * 1e18)) : BigInt(Math.floor(amount * 1e18))
-      console.log(`[Unlink:Server] Verifying transfer: parsedAmount=${parsedAmount.toString()}, token=${MON_TOKEN}`)
-      const { verified } = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, MON_TOKEN)
+      // Client deposits USDC (not MON) — verify with USDC token address
+      // Falls back to MON_TOKEN match if USDC doesn't match (backwards compat)
+      console.log(`[Unlink:Server] Verifying transfer: parsedAmount=${parsedAmount.toString()}, token=UNLINK_USDC`)
+      let { verified } = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, UNLINK_USDC)
+      if (!verified) {
+        console.log(`[Unlink:Server] USDC match failed, trying MON_TOKEN fallback...`)
+        const fallback = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, MON_TOKEN)
+        verified = fallback.verified
+      }
       if (!verified) {
         console.error(`[Unlink:Server] Transfer NOT verified — not found in server wallet notes`)
         return NextResponse.json({

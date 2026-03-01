@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Wallet, LogOut, Shield, Zap, TrendingUp,
   Users, Activity, Radio, MapPin, Eye, EyeOff,
-  Clock, Crosshair
+  Clock, Crosshair, Navigation, X
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePulseStream } from '@/hooks/use-pulse-stream'
@@ -41,6 +41,8 @@ interface HeatmapPoint {
   side: string
   timestamp: number
   executionMode?: 'direct' | 'unlink'
+  marketName?: string
+  walletHash?: string
 }
 
 interface PulseStats {
@@ -61,9 +63,11 @@ interface PulseStats {
 function MapboxHeatmap({
   points,
   onMapReady,
+  onPointClick,
 }: {
   points: HeatmapPoint[]
   onMapReady?: (map: mapboxgl.Map) => void
+  onPointClick?: (point: HeatmapPoint, screenPos: { x: number; y: number }) => void
 }) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -91,6 +95,7 @@ function MapboxHeatmap({
       map.touchZoomRotate.disableRotation()
 
       map.on('load', () => {
+        // Heatmap thermal layer (background glow)
         map.addSource('pulse-heat', {
           type: 'geojson',
           data: { type: 'FeatureCollection', features: [] },
@@ -121,7 +126,49 @@ function MapboxHeatmap({
               0.85, 'rgba(255, 180, 30, 0.9)',
               1.0, 'rgba(255, 240, 80, 0.95)',
             ],
-            'heatmap-opacity': 0.85,
+            'heatmap-opacity': 0.6,
+          },
+        })
+
+        // Clickable circle layer for direct trades — colored by side
+        map.addSource('pulse-circles', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        })
+
+        map.addLayer({
+          id: 'pulse-circles-glow',
+          type: 'circle',
+          source: 'pulse-circles',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 8, 13, 16, 16, 28],
+            'circle-color': [
+              'case',
+              ['==', ['get', 'side'], 'No'], 'rgba(255, 59, 48, 0.15)',
+              'rgba(16, 185, 129, 0.15)',
+            ],
+            'circle-blur': 1,
+          },
+        })
+
+        map.addLayer({
+          id: 'pulse-circles-core',
+          type: 'circle',
+          source: 'pulse-circles',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 13, 6, 16, 10],
+            'circle-color': [
+              'case',
+              ['==', ['get', 'side'], 'No'], 'rgba(255, 59, 48, 0.8)',
+              'rgba(16, 185, 129, 0.8)',
+            ],
+            'circle-blur': 0.3,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': [
+              'case',
+              ['==', ['get', 'side'], 'No'], 'rgba(255, 59, 48, 0.4)',
+              'rgba(16, 185, 129, 0.4)',
+            ],
           },
         })
 
@@ -137,7 +184,7 @@ function MapboxHeatmap({
           source: 'pulse-zk',
           paint: {
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 13, 22, 16, 40],
-            'circle-color': 'rgba(16, 185, 129, 0.15)',
+            'circle-color': 'rgba(131, 110, 249, 0.15)',
             'circle-blur': 1,
           },
         })
@@ -150,15 +197,55 @@ function MapboxHeatmap({
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 13, 8, 16, 14],
             'circle-color': [
               'interpolate', ['linear'], ['get', 'intensity'],
-              0.3, 'rgba(16, 185, 129, 0.6)',
-              0.7, 'rgba(52, 211, 153, 0.8)',
-              1.0, 'rgba(167, 243, 208, 0.95)',
+              0.3, 'rgba(131, 110, 249, 0.6)',
+              0.7, 'rgba(167, 130, 255, 0.8)',
+              1.0, 'rgba(200, 180, 255, 0.95)',
             ],
             'circle-blur': 0.4,
             'circle-stroke-width': 1,
-            'circle-stroke-color': 'rgba(16, 185, 129, 0.3)',
+            'circle-stroke-color': 'rgba(131, 110, 249, 0.3)',
           },
         })
+
+        // Click handler for trade circles
+        map.on('click', 'pulse-circles-core', (e) => {
+          if (!e.features?.[0]) return
+          const props = e.features[0].properties
+          const coords = (e.features[0].geometry as GeoJSON.Point).coordinates
+          if (props && onPointClick) {
+            onPointClick({
+              lat: coords[1], lng: coords[0],
+              intensity: props.intensity || 0.5,
+              side: props.side || 'Yes',
+              timestamp: props.timestamp || Date.now(),
+              marketName: props.marketName || '',
+              walletHash: props.walletHash || 'anon',
+            }, { x: e.point.x, y: e.point.y })
+          }
+        })
+
+        map.on('click', 'pulse-zk-core', (e) => {
+          if (!e.features?.[0]) return
+          const props = e.features[0].properties
+          const coords = (e.features[0].geometry as GeoJSON.Point).coordinates
+          if (props && onPointClick) {
+            onPointClick({
+              lat: coords[1], lng: coords[0],
+              intensity: props.intensity || 0.5,
+              side: props.side || 'Yes',
+              timestamp: props.timestamp || Date.now(),
+              executionMode: 'unlink',
+              marketName: props.marketName || '',
+              walletHash: props.walletHash || 'anon',
+            }, { x: e.point.x, y: e.point.y })
+          }
+        })
+
+        // Pointer cursor on hover
+        map.on('mouseenter', 'pulse-circles-core', () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', 'pulse-circles-core', () => { map.getCanvas().style.cursor = '' })
+        map.on('mouseenter', 'pulse-zk-core', () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', 'pulse-zk-core', () => { map.getCanvas().style.cursor = '' })
 
         mapRef.current = map
         setMapLoaded(true)
@@ -181,28 +268,31 @@ function MapboxHeatmap({
     const directPoints = points.filter(p => p.executionMode !== 'unlink')
     const zkPoints = points.filter(p => p.executionMode === 'unlink')
 
+    const makeFeatures = (pts: HeatmapPoint[]) => pts.map((p) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+      properties: {
+        intensity: p.intensity,
+        side: p.side,
+        timestamp: p.timestamp,
+        marketName: p.marketName || '',
+        walletHash: p.walletHash || 'anon',
+      },
+    }))
+
     const heatSource = mapRef.current.getSource('pulse-heat') as mapboxgl.GeoJSONSource
     if (heatSource) {
-      heatSource.setData({
-        type: 'FeatureCollection',
-        features: directPoints.map((p) => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-          properties: { intensity: p.intensity, side: p.side },
-        })),
-      })
+      heatSource.setData({ type: 'FeatureCollection', features: makeFeatures(directPoints) })
+    }
+
+    const circleSource = mapRef.current.getSource('pulse-circles') as mapboxgl.GeoJSONSource
+    if (circleSource) {
+      circleSource.setData({ type: 'FeatureCollection', features: makeFeatures(directPoints) })
     }
 
     const zkSource = mapRef.current.getSource('pulse-zk') as mapboxgl.GeoJSONSource
     if (zkSource) {
-      zkSource.setData({
-        type: 'FeatureCollection',
-        features: zkPoints.map((p) => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-          properties: { intensity: p.intensity, side: p.side },
-        })),
-      })
+      zkSource.setData({ type: 'FeatureCollection', features: makeFeatures(zkPoints) })
     }
   }, [points, mapLoaded])
 
@@ -486,6 +576,163 @@ function WhaleAlert({ active, amount, side, isZk }: { active: boolean; amount: n
       </div>
     </div>
   )
+}
+
+// ─── Trade Info Popup (click on point) ────────────────
+
+interface TradeInfoPopupData {
+  point: HeatmapPoint
+  screenPos: { x: number; y: number }
+}
+
+function TradeInfoPopup({ data, onClose, onFlyTo, map }: {
+  data: TradeInfoPopupData | null
+  onClose: () => void
+  onFlyTo: (lat: number, lng: number) => void
+  map: mapboxgl.Map | null
+}) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!data || !map) { setPos(null); return }
+    const update = () => {
+      const pt = map.project([data.point.lng, data.point.lat])
+      setPos({ x: pt.x, y: pt.y })
+    }
+    update()
+    map.on('move', update)
+    return () => { map.off('move', update) }
+  }, [data, map])
+
+  if (!data || !pos) return null
+
+  const isZk = data.point.executionMode === 'unlink'
+  const ago = Math.max(1, Math.floor((Date.now() - data.point.timestamp) / 1000))
+  const agoStr = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`
+  const wallet = data.point.walletHash || 'anon'
+  const walletDisplay = wallet.startsWith('0x') ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : wallet.slice(0, 8)
+
+  return (
+    <div className="absolute inset-0 pointer-events-none z-[35] overflow-hidden">
+      <div
+        className="absolute pointer-events-auto animate-scale-in"
+        style={{ left: pos.x, top: pos.y, transform: 'translate(-50%, calc(-100% - 16px))' }}
+      >
+        <div className={`backdrop-blur-xl bg-black/80 border p-3 min-w-[200px] ${
+          isZk ? 'border-[#836EF9]/30' : data.point.side === 'No' ? 'border-red-500/30' : 'border-emerald-500/30'
+        }`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              {isZk && <Shield className="w-3 h-3 text-[#836EF9]" />}
+              <span className={`text-[11px] font-bold font-mono ${
+                data.point.side === 'No' ? 'text-red-400' : 'text-emerald-400'
+              }`}>
+                {data.point.side.toUpperCase()}
+              </span>
+              {isZk && <span className="text-[8px] font-mono text-[#836EF9]/60 px-1 border border-[#836EF9]/20">ZK</span>}
+            </div>
+            <button onClick={onClose} className="p-0.5 hover:bg-white/10 transition-colors">
+              <X className="w-3 h-3 text-white/30" />
+            </button>
+          </div>
+          {data.point.marketName && (
+            <div className="text-[10px] font-mono text-white/60 mb-1.5 leading-tight">
+              {data.point.marketName}
+            </div>
+          )}
+          <div className="flex items-center gap-3 text-[9px] font-mono text-white/25">
+            <span>{agoStr}</span>
+            <span>{walletDisplay}</span>
+          </div>
+          <button
+            onClick={() => onFlyTo(data.point.lat, data.point.lng)}
+            className="mt-2 w-full py-1 text-[8px] font-mono tracking-[1px] text-white/30 border border-white/[0.06]
+                       hover:bg-white/[0.04] hover:text-white/50 transition-colors flex items-center justify-center gap-1"
+          >
+            <Crosshair className="w-2.5 h-2.5" /> ZOOM IN
+          </button>
+        </div>
+        {/* Arrow pointing down */}
+        <div className="flex justify-center">
+          <div className="w-2 h-2 bg-black/80 border-r border-b border-white/10 rotate-45 -mt-1" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Compass / Recenter Button ──────────────────────
+
+function CompassButton({ map, userLocation }: { map: mapboxgl.Map | null; userLocation: { lat: number; lng: number } | null }) {
+  const handleRecenter = () => {
+    if (!map) return
+    const target = userLocation || { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
+    map.flyTo({
+      center: [target.lng, target.lat],
+      zoom: 15,
+      duration: 1500,
+      essential: true,
+    })
+  }
+
+  return (
+    <button
+      onClick={handleRecenter}
+      className="absolute bottom-[200px] md:bottom-[190px] right-3 md:right-6 z-20
+                 w-10 h-10 backdrop-blur-md bg-black/50 border border-white/[0.08]
+                 hover:border-white/20 hover:bg-black/70 transition-all
+                 flex items-center justify-center active:scale-95"
+      title="Recenter map"
+    >
+      <Navigation className="w-4 h-4 text-white/50" />
+    </button>
+  )
+}
+
+// ─── Twitch-style Live Trade Overlay ─────────────────
+
+function LiveTradeOverlay({ items }: { items: LiveOverlayItem[] }) {
+  if (items.length === 0) return null
+
+  return (
+    <div className="absolute top-[120px] left-3 md:left-6 z-[22] pointer-events-none max-w-[320px]">
+      <div className="space-y-1">
+        {items.slice(0, 5).map((item, i) => (
+          <div
+            key={item.id}
+            className={`flex items-center gap-2 px-3 py-1.5 backdrop-blur-sm bg-black/30 border border-white/[0.04]
+                        ${i === 0 ? 'animate-feed-slide-in' : ''}`}
+            style={{ opacity: 1 - i * 0.15 }}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              item.side === 'No' ? 'bg-red-500' : 'bg-emerald-500'
+            }`} />
+            <span className="text-[10px] font-mono text-white/40">
+              {item.walletHash}
+            </span>
+            <span className="text-[10px] font-mono text-white/60 font-bold">
+              {item.side.toUpperCase()}
+            </span>
+            {item.marketName && (
+              <span className="text-[9px] font-mono text-white/20 truncate">
+                {item.marketName}
+              </span>
+            )}
+            {item.isZk && <Shield className="w-2.5 h-2.5 text-[#836EF9]/50 flex-shrink-0" />}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+interface LiveOverlayItem {
+  id: number
+  walletHash: string
+  side: string
+  marketName: string
+  isZk: boolean
+  timestamp: number
 }
 
 // ─── Neighborhood Labels (zoom-based) ────────────────
@@ -1288,6 +1535,8 @@ export default function PulsePage() {
   const [timeSlider, setTimeSlider] = useState(100) // 100 = now
   const [prevVolume, setPrevVolume] = useState(0)
   const [marketStreamVisible, setMarketStreamVisible] = useState(false)
+  const [tradeInfoPopup, setTradeInfoPopup] = useState<TradeInfoPopupData | null>(null)
+  const [liveOverlayItems, setLiveOverlayItems] = useState<LiveOverlayItem[]>([])
   const popupIdRef = useRef(0)
   const prevPointCount = useRef(0)
   const mapInstanceRef = useRef<mapboxgl.Map | null>(null)
@@ -1309,14 +1558,27 @@ export default function PulsePage() {
       side: lastTrade.side,
       timestamp: lastTrade.timestamp,
       executionMode: lastTrade.executionMode || 'direct',
+      marketName: lastTrade.marketName || '',
     }
     setPoints(prev => [newPoint, ...prev].slice(0, 500))
 
     const isZk = lastTrade.executionMode === 'unlink'
     const isWhale = midpoint >= 50
 
-    // Floating "+$X" popup
+    // Twitch-style overlay — truncated wallet (use real hash prefix if available)
+    const rawWallet = lastTrade.walletHash || ''
+    const walletShort = rawWallet.length >= 6 ? `${rawWallet.slice(0, 6)}...` : `0x...${Math.floor(Math.random() * 0xFFFF).toString(16).padStart(4, '0')}`
     const popupId = ++popupIdRef.current
+    setLiveOverlayItems(prev => [{
+      id: popupId,
+      walletHash: walletShort,
+      side: lastTrade.side,
+      marketName: lastTrade.marketName || '',
+      isZk,
+      timestamp: Date.now(),
+    }, ...prev].slice(0, 8))
+
+    // Floating "+$X" popup
     setTradePopups(prev => [...prev, {
       id: popupId,
       lat: lastTrade.lat,
@@ -1364,6 +1626,20 @@ export default function PulsePage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied'>('idle')
   const geoRequested = useRef(false)
+
+  const handlePointClick = useCallback((point: HeatmapPoint, screenPos: { x: number; y: number }) => {
+    setTradeInfoPopup({ point, screenPos })
+  }, [])
+
+  const handleFlyTo = useCallback((lat: number, lng: number) => {
+    if (!mapInstanceRef.current) return
+    mapInstanceRef.current.flyTo({
+      center: [lng, lat],
+      zoom: 16,
+      duration: 1200,
+      essential: true,
+    })
+  }, [])
 
   const handleMapReady = useCallback((map: mapboxgl.Map) => {
     mapInstanceRef.current = map
@@ -1509,12 +1785,20 @@ export default function PulsePage() {
           </div>
         ) : (
           <>
-            <MapboxHeatmap points={filteredPoints} onMapReady={handleMapReady} />
+            <MapboxHeatmap points={filteredPoints} onMapReady={handleMapReady} onPointClick={handlePointClick} />
             <NeighborhoodLabels map={mapInstanceRef.current} />
             <ScanLine active={scanActive} />
             <LiveTradePopups popups={tradePopups} map={mapInstanceRef.current} />
             <WhaleAlert {...whaleAlert} />
             <UserLocationMarker map={mapInstanceRef.current} location={userLocation} />
+            <TradeInfoPopup
+              data={tradeInfoPopup}
+              onClose={() => setTradeInfoPopup(null)}
+              onFlyTo={handleFlyTo}
+              map={mapInstanceRef.current}
+            />
+            <CompassButton map={mapInstanceRef.current} userLocation={userLocation} />
+            <LiveTradeOverlay items={liveOverlayItems} />
             {stats && stats.zkPrivateCount > 0 && (
               <PrivacyRing zkPct={stats.zkPrivatePct} zkCount={stats.zkPrivateCount} totalCount={filteredPoints.length} />
             )}

@@ -10,6 +10,8 @@ interface HeatmapPoint {
   side: string
   timestamp: number
   executionMode: 'direct' | 'unlink'
+  marketName?: string
+  walletHash?: string
 }
 
 interface PulseStats {
@@ -120,8 +122,9 @@ async function ensurePulseTable() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS idx_pulse_condition_ts ON pulse_trades(condition_id, timestamp_bucket)`.catch(() => {})
-  // Add execution_mode column if missing (existing tables)
+  // Add columns if missing (existing tables)
   await sql`ALTER TABLE pulse_trades ADD COLUMN IF NOT EXISTS execution_mode TEXT NOT NULL DEFAULT 'direct'`.catch(() => {})
+  await sql`ALTER TABLE pulse_trades ADD COLUMN IF NOT EXISTS market_name TEXT NOT NULL DEFAULT ''`.catch(() => {})
   tableReady = true
 }
 
@@ -145,14 +148,14 @@ async function fetchRealData(conditionId?: string): Promise<{
 
     const rows = conditionId
       ? await sql`
-          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, execution_mode, created_at
+          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, execution_mode, market_name, created_at
           FROM pulse_trades
           WHERE condition_id = ${conditionId} AND timestamp_bucket > ${cutoff}
           ORDER BY created_at DESC
           LIMIT 500
         `
       : await sql`
-          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, execution_mode, created_at
+          SELECT lat, lng, side, amount_bucket, wallet_hash, timestamp_bucket, execution_mode, market_name, created_at
           FROM pulse_trades
           WHERE timestamp_bucket > ${cutoff}
           ORDER BY created_at DESC
@@ -173,6 +176,8 @@ async function fetchRealData(conditionId?: string): Promise<{
         side: String(r.side || 'Yes'),
         timestamp: Number(r.timestamp_bucket) || new Date(r.created_at).getTime(),
         executionMode: (r.execution_mode === 'unlink' ? 'unlink' : 'direct') as 'direct' | 'unlink',
+        marketName: String(r.market_name || ''),
+        walletHash: String(r.wallet_hash || 'anon'),
       }
     })
 
@@ -185,12 +190,15 @@ async function fetchRealData(conditionId?: string): Promise<{
       totalVolume += AMOUNT_MIDPOINT[String(r.amount_bucket || '1-10')] || 5
     })
 
+    // Derive market name from most recent trade with a name
+    const recentMarketName = rows.find((r) => r.market_name && r.market_name !== '')?.market_name || 'Live Market'
+
     // Side breakdown (K-anonymity: only reveal if >= 5 unique wallets)
     let teamAPct = 50
     let teamBPct = 50
     const sides = rows.map((r) => String(r.side))
     if (activeTraders >= 5) {
-      const sideA = sides.filter((s) => s === 'Lakers' || s === 'Yes').length
+      const sideA = sides.filter((s) => s === 'Yes').length
       teamAPct = Math.round((sideA / sides.length) * 100)
       teamBPct = 100 - teamAPct
     }
@@ -206,7 +214,7 @@ async function fetchRealData(conditionId?: string): Promise<{
     const zkPct = rows.length > 0 ? Math.round((zkCount / rows.length) * 100) : 0
 
     const stats: PulseStats = {
-      marketName: 'NBA: KNICKS WIN FINALS',
+      marketName: recentMarketName,
       conditionId: conditionId || 'all',
       teamA: { name: 'YES', pct: teamAPct, price: teamAPct / 100 },
       teamB: { name: 'NO', pct: teamBPct, price: teamBPct / 100 },
@@ -214,7 +222,7 @@ async function fetchRealData(conditionId?: string): Promise<{
       totalVolume: Math.round(totalVolume),
       spikeIndicator: Math.round(spike * 10) / 10,
       globalComparison: activeTraders >= 5
-        ? `MSG crowd is ${teamAPct}% YES on Knicks. ${teamAPct > 50 ? 'Bullish' : 'Bearish'} vs global 4.5%.`
+        ? `Crowd is ${teamAPct}% YES. ${teamAPct > 50 ? 'Bullish' : 'Bearish'} sentiment.`
         : 'Not enough traders yet for sentiment breakdown.',
       zkPrivateCount: zkCount,
       zkPrivatePct: zkPct,

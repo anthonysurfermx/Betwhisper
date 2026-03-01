@@ -17,7 +17,7 @@ import {
   Swords, Gamepad2, CircleDot, Bitcoin, Dribbble,
   Trophy, Zap,
   Users, Link2, Copy, Check, Plus, ArrowLeft, Crown, Lock, Unlock,
-  MessageSquare, Trash2, Clock, Radio, MapPin, Maximize2, X, Navigation,
+  MessageSquare, Trash2, Clock, Radio, MapPin, Maximize2, X, Navigation, Info,
 } from 'lucide-react'
 import {
   Drawer, DrawerContent, DrawerTrigger, DrawerTitle,
@@ -1769,6 +1769,7 @@ function SuccessProbabilityAttachment({ probability, market, signalHash, lang, o
   onSmartBet: (side: 'Yes' | 'No', slug: string, signalHash: string, amount: string, conditionId?: string) => void
   onManualBet: (side: 'Yes' | 'No', slug: string, signalHash: string, conditionId?: string) => void
 }) {
+  const [showExplanation, setShowExplanation] = useState(false)
   const hasSide = probability.recommendedSide !== null
   const side = probability.recommendedSide || 'Yes'
   const isYes = side === 'Yes'
@@ -1784,6 +1785,52 @@ function SuccessProbabilityAttachment({ probability, market, signalHash, lang, o
   )
 
   const hasMarketImpact = probability.breakdown.marketImpact < -2
+
+  // Build explanation text
+  const explanationLines: string[] = []
+  if (hasSide) {
+    const marketPct = probability.breakdown.marketImplied
+    const agentAdj = probability.breakdown.agentAdjustment
+    const edgePct = probability.edge
+
+    explanationLines.push(
+      lang === 'es'
+        ? `El mercado de Polymarket valora ${side === 'Yes' ? 'YES' : 'NO'} en ${marketPct}%.`
+        : `Polymarket prices ${side === 'Yes' ? 'YES' : 'NO'} at ${marketPct}%.`
+    )
+    if (agentAdj !== 0) {
+      explanationLines.push(
+        lang === 'es'
+          ? `Agent Radar detectó actividad de bots: ajuste de ${agentAdj > 0 ? '+' : ''}${agentAdj}%.`
+          : `Agent Radar detected bot activity: ${agentAdj > 0 ? '+' : ''}${agentAdj}% adjustment.`
+      )
+    }
+    if (probability.breakdown.redFlagPenalty < 0) {
+      explanationLines.push(
+        lang === 'es'
+          ? `Penalización por riesgo: ${probability.breakdown.redFlagPenalty}% (señales adversas).`
+          : `Risk penalty: ${probability.breakdown.redFlagPenalty}% (adverse signals detected).`
+      )
+    }
+    if (edgePct > 0) {
+      explanationLines.push(
+        lang === 'es'
+          ? `Edge detectado: ${edgePct.toFixed(1)}% de ventaja vs el mercado.`
+          : `Edge detected: ${edgePct.toFixed(1)}% advantage vs market.`
+      )
+    }
+    explanationLines.push(
+      lang === 'es'
+        ? `Kelly Criterion sugiere apostar ${Math.round(probability.kellyFraction * 100)}% del capital.`
+        : `Kelly Criterion suggests betting ${Math.round(probability.kellyFraction * 100)}% of bankroll.`
+    )
+  } else {
+    explanationLines.push(
+      lang === 'es'
+        ? 'No se detectó ventaja suficiente. El precio del mercado refleja la probabilidad real.'
+        : 'No sufficient edge detected. Market price reflects true probability.'
+    )
+  }
 
   return (
     <div className="mt-2 border border-white/[0.10] bg-white/[0.04]">
@@ -1825,7 +1872,31 @@ function SuccessProbabilityAttachment({ probability, market, signalHash, lang, o
             <span className={`text-[16px] font-bold font-mono ${isYes ? 'text-emerald-500' : 'text-red-400'}`}>
               {side.toUpperCase()}
             </span>
+            <button
+              onClick={() => setShowExplanation(v => !v)}
+              className="ml-1 p-0.5 hover:bg-white/[0.06] transition-colors rounded-sm"
+              title={lang === 'es' ? '¿Por qué esta recomendación?' : 'Why this recommendation?'}
+            >
+              <Info className={`w-3.5 h-3.5 ${showExplanation ? 'text-[#836EF9]' : 'text-white/25 hover:text-white/50'}`} />
+            </button>
           </div>
+
+          {/* Explanation panel */}
+          {showExplanation && (
+            <div className="mb-3 px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] animate-scale-in">
+              <div className="text-[8px] font-mono text-white/25 tracking-[1.5px] mb-1.5">
+                {lang === 'es' ? 'POR QUÉ' : 'WHY'}
+              </div>
+              <div className="space-y-1">
+                {explanationLines.map((line, i) => (
+                  <div key={i} className="text-[10px] font-mono text-white/40 leading-relaxed flex gap-1.5">
+                    <span className="text-white/15 flex-shrink-0">•</span>
+                    <span>{line}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Smart Money button */}
           <button onClick={() => onSmartBet(side, market.slug, signalHash, String(probability.smartMoneySize), market.conditionId)}
@@ -1849,10 +1920,49 @@ function SuccessProbabilityAttachment({ probability, market, signalHash, lang, o
               ${probability.betAmount} USD (100%)
             </button>
           )}
+
+          {/* Manual YES/NO buttons — user can always override */}
+          <div className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+            <span className="text-[8px] font-mono text-white/15 tracking-[1px] flex-shrink-0">
+              {lang === 'es' ? 'O ELIGE' : 'OR PICK'}
+            </span>
+            <button onClick={() => onManualBet('Yes', market.slug, signalHash, market.conditionId)}
+              className={`flex-1 py-1.5 text-[10px] font-semibold border transition-colors active:scale-[0.97] ${
+                isYes ? 'border-emerald-500/20 text-emerald-500/40' : 'border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10'
+              }`}>
+              YES
+            </button>
+            <button onClick={() => onManualBet('No', market.slug, signalHash, market.conditionId)}
+              className={`flex-1 py-1.5 text-[10px] font-semibold border transition-colors active:scale-[0.97] ${
+                !isYes ? 'border-red-400/20 text-red-400/40' : 'border-red-400/30 text-red-400 hover:bg-red-400/10'
+              }`}>
+              NO
+            </button>
+          </div>
         </div>
       ) : (
         <div className="px-4 py-3 border-t border-white/[0.06]">
-          <p className="text-[11px] text-amber-400/70 font-mono mb-3">{t(lang, 'noEdge')}</p>
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-[11px] text-amber-400/70 font-mono">{t(lang, 'noEdge')}</p>
+            <button
+              onClick={() => setShowExplanation(v => !v)}
+              className="p-0.5 hover:bg-white/[0.06] transition-colors rounded-sm flex-shrink-0"
+            >
+              <Info className={`w-3.5 h-3.5 ${showExplanation ? 'text-[#836EF9]' : 'text-white/25 hover:text-white/50'}`} />
+            </button>
+          </div>
+          {showExplanation && (
+            <div className="mb-3 px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] animate-scale-in">
+              <div className="space-y-1">
+                {explanationLines.map((line, i) => (
+                  <div key={i} className="text-[10px] font-mono text-white/40 leading-relaxed flex gap-1.5">
+                    <span className="text-white/15 flex-shrink-0">•</span>
+                    <span>{line}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button onClick={() => onManualBet('Yes', market.slug, signalHash, market.conditionId)}
               className="flex-1 py-2 text-[12px] font-semibold border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 transition-colors active:scale-[0.97]">
@@ -1969,7 +2079,7 @@ function BetTimelineAttachment({ steps, side, amount, market, playSound }: {
                 {step.txHash && step.explorerUrl && (
                   <a href={step.explorerUrl} target="_blank" rel="noopener noreferrer"
                     className="text-[9px] font-mono text-white/20 hover:text-white/40 transition-colors flex items-center gap-1 mt-0.5">
-                    {step.txHash.slice(0, 14)}... <ExternalLink className="w-2.5 h-2.5" />
+                    {step.explorerUrl.includes('polymarket.com') ? 'View on Polymarket' : `${step.txHash.slice(0, 14)}...`} <ExternalLink className="w-2.5 h-2.5" />
                   </a>
                 )}
               </div>
@@ -2302,7 +2412,7 @@ function SellTimelineAttachment({ steps, marketSlug }: { steps: BetTimelineStep[
                 {step.txHash && step.explorerUrl && (
                   <a href={step.explorerUrl} target="_blank" rel="noopener noreferrer"
                     className="text-[9px] font-mono text-white/20 hover:text-white/40 transition-colors flex items-center gap-1 mt-0.5">
-                    {step.txHash.slice(0, 14)}... <ExternalLink className="w-2.5 h-2.5" />
+                    {step.explorerUrl.includes('polymarket.com') ? 'View on Polymarket' : `${step.txHash.slice(0, 14)}...`} <ExternalLink className="w-2.5 h-2.5" />
                   </a>
                 )}
               </div>
@@ -3122,10 +3232,20 @@ export default function PredictChat() {
   const { address, isConnected, connect, disconnect, signer, wrongChain, switchToTestnet } = useWeb3()
 
   // Unlink privacy wallet
-  const { walletExists, ready: unlinkReady, createWallet, activeAccount, waitForConfirmation, forceResync: unlinkForceResync, balances: unlinkBalances } = useUnlink()
+  const { walletExists, ready: unlinkReady, createWallet, createAccount, activeAccount, waitForConfirmation, forceResync: unlinkForceResync, balances: unlinkBalances } = useUnlink()
   const { deposit: unlinkDeposit } = useDeposit()
   const { send: unlinkSend } = useSend()
   const [serverUnlinkAddr, setServerUnlinkAddr] = useState<string>('')
+
+  // Refs to track latest Unlink state (closures in executeTrade capture stale values)
+  const unlinkReadyRef = useRef(unlinkReady)
+  const walletExistsRef = useRef(walletExists)
+  const activeAccountRef = useRef(activeAccount)
+  const serverUnlinkAddrRef = useRef(serverUnlinkAddr)
+  useEffect(() => { unlinkReadyRef.current = unlinkReady }, [unlinkReady])
+  useEffect(() => { walletExistsRef.current = walletExists }, [walletExists])
+  useEffect(() => { activeAccountRef.current = activeAccount }, [activeAccount])
+  useEffect(() => { serverUnlinkAddrRef.current = serverUnlinkAddr }, [serverUnlinkAddr])
 
   // Fetch server's Unlink address on mount
   useEffect(() => {
@@ -3134,16 +3254,32 @@ export default function PredictChat() {
     }).catch(() => {})
   }, [])
 
-  // Auto-create Unlink wallet if none exists (once SDK is ready)
+  // Auto-create Unlink wallet + account if none exists (once SDK is ready)
+  // TWO steps required: createWallet() → mnemonic, createAccount() → activeAccount
   useEffect(() => {
     if (unlinkReady && !walletExists) {
-      createWallet().then(({ mnemonic }) => {
-        // Store mnemonic for recovery — user can export later
+      createWallet().then(async ({ mnemonic }) => {
         try { localStorage.setItem('bw_unlink_mnemonic', mnemonic) } catch {}
-        console.log('[Unlink] Wallet created')
+        console.log('[Unlink] Wallet created, creating account...')
+        try {
+          await createAccount()
+          console.log('[Unlink] Account created (activeAccount should be set now)')
+        } catch (e) {
+          console.warn('[Unlink] Account creation failed:', e)
+        }
       }).catch(e => console.warn('[Unlink] Wallet creation failed:', e))
     }
-  }, [unlinkReady, walletExists, createWallet])
+  }, [unlinkReady, walletExists, createWallet, createAccount])
+
+  // If wallet exists but no active account (e.g. page reload), create account
+  useEffect(() => {
+    if (unlinkReady && walletExists && !activeAccount) {
+      console.log('[Unlink] Wallet exists but no activeAccount, creating account...')
+      createAccount().then(() => {
+        console.log('[Unlink] Account created on existing wallet')
+      }).catch(e => console.warn('[Unlink] Account creation on existing wallet failed:', e))
+    }
+  }, [unlinkReady, walletExists, activeAccount, createAccount])
 
   // Recovery state: detect pending Unlink deposit from interrupted flow
   const [unlinkRecovery, setUnlinkRecovery] = useState<{
@@ -3557,6 +3693,8 @@ export default function PredictChat() {
       unlinkTxHash = confirmed.txHash || transferResult.relayId
       steps[0].status = 'confirmed'
       steps[0].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
+      steps[0].txHash = unlinkTxHash || undefined
+      steps[0].explorerUrl = unlinkTxHash ? `${MONAD_EXPLORER}/tx/${unlinkTxHash}` : undefined
       updateTimeline(steps)
 
       try { localStorage.removeItem('bw_unlink_pending') } catch {}
@@ -3608,6 +3746,8 @@ export default function PredictChat() {
         }).catch(() => {})
         steps[2].status = 'confirmed'
         steps[2].detail = `${side.toUpperCase()} @ $${data.price?.toFixed(2)} · ${data.shares?.toFixed(1)} shares`
+        steps[2].txHash = data.polygonTxHash || data.txHash
+        steps[2].explorerUrl = `https://polymarket.com/portfolio`
         updateTimeline(steps)
       } else {
         steps[1].status = 'error'
@@ -3652,10 +3792,21 @@ export default function PredictChat() {
       }
     }
 
-    // Determine if Unlink privacy path is available
-    console.log('[Execution] Unlink check:', { unlinkReady, walletExists, serverUnlinkAddr: !!serverUnlinkAddr, activeAccount: !!activeAccount })
-    const useUnlinkPath = unlinkReady && walletExists && serverUnlinkAddr && activeAccount
-    console.log('[Execution] Path:', useUnlinkPath ? 'UNLINK (ZK Privacy)' : 'DIRECT (old flow)')
+    // ─── DETERMINE EXECUTION PATH ───
+    // Try Unlink first (ZK privacy with USDC on testnet), fall back to direct MON
+    // IMPORTANT: Read from refs (not closure values) to get latest state during async waits
+    const checkUnlink = () => unlinkReadyRef.current && walletExistsRef.current && !!serverUnlinkAddrRef.current && !!activeAccountRef.current
+    console.log('[Execution] Unlink check:', { unlinkReady: unlinkReadyRef.current, walletExists: walletExistsRef.current, serverUnlinkAddr: !!serverUnlinkAddrRef.current, activeAccount: !!activeAccountRef.current })
+    let useUnlinkPath = checkUnlink()
+    if (!useUnlinkPath) {
+      // Give Unlink SDK up to 5s to finish initializing before falling back
+      for (let wait = 0; wait < 10 && !useUnlinkPath; wait++) {
+        await new Promise(r => setTimeout(r, 500))
+        useUnlinkPath = checkUnlink()
+        console.log(`[Execution] Waiting for Unlink SDK... attempt ${wait + 1}/10`, { unlinkReady: unlinkReadyRef.current, walletExists: walletExistsRef.current, serverUnlinkAddr: !!serverUnlinkAddrRef.current, activeAccount: !!activeAccountRef.current })
+      }
+    }
+    console.log('[Execution] Path:', useUnlinkPath ? 'UNLINK (ZK Privacy)' : 'DIRECT (MON payment)')
 
     // Initialize timeline — 4 steps for Unlink, 3 for direct
     const steps: BetTimelineStep[] = useUnlinkPath
@@ -3866,10 +4017,10 @@ export default function PredictChat() {
 
         // Poll forceResync + check balances — correct approach for deposits
         console.log('[Unlink:Deposit] Syncing wallet via forceResync to detect deposit...')
-        for (let poll = 1; poll <= 12; poll++) {
+        for (let poll = 1; poll <= 2; poll++) {
           steps[0].detail = lang === 'es'
-            ? `Sincronizando con el pool (${poll}/12)...`
-            : `Syncing with pool (${poll}/12)...`
+            ? `Sincronizando con el pool (${poll}/2)...`
+            : `Syncing with pool (${poll}/2)...`
           updateTimeline(steps)
           try {
             await unlinkForceResync()
@@ -3877,7 +4028,7 @@ export default function PredictChat() {
             // unlinkBalances is a React state ref that updates on resync
             await new Promise(r => setTimeout(r, 500)) // Brief pause for React state update
             const freshBal = unlinkBalances[UNLINK_USDC.toLowerCase()] || BigInt(0)
-            console.log(`[Unlink:Deposit] Poll ${poll}/12: USDC pool balance=${freshBal.toString()}`)
+            console.log(`[Unlink:Deposit] Poll ${poll}/2: USDC pool balance=${freshBal.toString()}`)
             if (freshBal > BigInt(0)) {
               depositConfirmed = true
               console.log(`[Unlink:Deposit] Balance detected: ${freshBal.toString()}, proceeding!`)
@@ -3904,6 +4055,8 @@ export default function PredictChat() {
 
         steps[0].status = 'confirmed'
         steps[0].detail = `$${amount} USDC → Privacy Pool`
+        steps[0].txHash = depositTx.hash
+        steps[0].explorerUrl = `${MONAD_EXPLORER}/tx/${depositTx.hash}`
         updateTimeline(steps)
         playSound('step')
 
@@ -3949,6 +4102,8 @@ export default function PredictChat() {
 
         steps[1].status = 'confirmed'
         steps[1].detail = lang === 'es' ? 'Transferencia privada enviada' : 'Private transfer sent'
+        steps[1].txHash = unlinkTxHash || undefined
+        steps[1].explorerUrl = unlinkTxHash ? `${MONAD_EXPLORER}/tx/${unlinkTxHash}` : undefined
         updateTimeline(steps)
         playSound('step')
 
@@ -3964,7 +4119,7 @@ export default function PredictChat() {
         return
       }
     } else {
-      // ─── DIRECT MON PAYMENT PATH (existing flow) ───
+      // ─── DIRECT MON PAYMENT PATH (testnet or mainnet) ───
       steps[0].status = 'processing'
       steps[0].detail = `${monAmount} MON ($${amount} USD)`
       updateTimeline(steps)
@@ -3983,7 +4138,10 @@ export default function PredictChat() {
         playSound('step')
       } catch (err) {
         steps[0].status = 'error'
-        steps[0].errorMsg = err instanceof Error ? err.message : t(lang, 'txRejected')
+        const errMsg = err instanceof Error ? err.message : t(lang, 'txRejected')
+        steps[0].errorMsg = errMsg.includes('CALL_EXCEPTION')
+          ? (lang === 'es' ? 'Transferencia rechazada. Intenta con la ruta de privacidad (Unlink).' : 'Transfer rejected. Try the privacy path (Unlink).')
+          : errMsg
         steps[0].detail = undefined
         updateTimeline(steps)
         return
@@ -4085,6 +4243,8 @@ export default function PredictChat() {
     steps[posIdx].detail = useUnlinkPath
       ? `🔒 ${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
       : `${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
+    steps[posIdx].txHash = clobResult.txHash
+    steps[posIdx].explorerUrl = `https://polymarket.com/portfolio`
     updateTimeline(steps)
     playSound('success')
 

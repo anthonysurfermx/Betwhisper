@@ -10,6 +10,8 @@ export interface PulseTradeEvent {
   conditionId: string
   timestamp: number
   executionMode?: 'direct' | 'unlink'
+  marketName?: string
+  walletHash?: string
 }
 
 /**
@@ -43,6 +45,8 @@ export function usePulseStream(enabled: boolean = true) {
             conditionId: data.conditionId,
             timestamp: data.timestamp,
             executionMode: data.executionMode || 'direct',
+            marketName: data.marketName || undefined,
+            walletHash: data.walletHash || undefined,
           }
           setLastTrade(trade)
           setTradeCount(c => c + 1)

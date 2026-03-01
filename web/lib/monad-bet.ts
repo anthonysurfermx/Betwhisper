@@ -2,9 +2,11 @@
 // User sends MON equivalent to their USD bet amount to BetWhisper deposit address
 // Bet metadata in calldata provides on-chain data provenance
 
-import { JsonRpcSigner, JsonRpcProvider, Wallet, parseEther, hexlify, toUtf8Bytes, formatEther } from 'ethers'
+import { JsonRpcSigner, JsonRpcProvider, Wallet, parseEther, formatEther } from 'ethers'
 import { MONAD_EXPLORER, MONAD_RPC, BETWHISPER_DEPOSIT_ADDRESS, RPC_TIMEOUT_MS, PAYMENT_TOLERANCE } from './constants'
 import { getMonPriceOrThrow } from './mon-price'
+
+const MONAD_TESTNET_RPC = 'https://testnet-rpc.monad.xyz'
 
 // Fetch with AbortController timeout for RPC calls
 async function fetchRpcWithTimeout(url: string, body: unknown, timeoutMs: number = RPC_TIMEOUT_MS): Promise<Response> {
@@ -47,27 +49,10 @@ export async function executeBet(
   const monAmount = (amountUSD / monPriceUSD) * 1.01
   const monAmountStr = monAmount.toFixed(6)
 
-  // Encode bet metadata as calldata for on-chain data provenance
-  const metadata = JSON.stringify({
-    protocol: 'betwhisper',
-    market: marketSlug,
-    side,
-    signal: signalHash,
-    amount_usd: amountUSD,
-    mon_price: monPriceUSD,
-    ts: Math.floor(Date.now() / 1000),
-  })
-
-  // gasLimit set manually: estimateGas fails on Monad when sending data to an EOA
-  // 21000 (base) + ~16 gas per byte of calldata metadata
-  const dataBytes = toUtf8Bytes(metadata)
-  const gasLimit = 21000 + dataBytes.length * 16 + 5000 // 5k buffer
-
+  // Simple MON transfer — no calldata (wallets reject data to EOAs)
   const tx = await signer.sendTransaction({
     to: BETWHISPER_DEPOSIT_ADDRESS,
     value: parseEther(monAmountStr),
-    data: hexlify(dataBytes),
-    gasLimit,
   })
 
   const receipt = await tx.wait()
@@ -93,24 +78,31 @@ export async function verifyMonadPayment(txHash: string, expectedAmountUSD: numb
 }> {
   try {
     console.log(`[Payment v3] Verifying tx ${txHash.slice(0, 12)}... (retry loop active)`)
-    // Retry loop: wait for Monad to confirm the transaction (up to ~10s)
+    // Try both mainnet and testnet RPCs (user may be on either network)
+    const rpcsToTry = [MONAD_RPC, MONAD_TESTNET_RPC]
     let receipt: Record<string, string> | null = null
     let tx: Record<string, string> | null = null
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const batchRes = await fetchRpcWithTimeout(MONAD_RPC, [
-        { jsonrpc: '2.0', method: 'eth_getTransactionReceipt', params: [txHash], id: 1 },
-        { jsonrpc: '2.0', method: 'eth_getTransactionByHash', params: [txHash], id: 2 },
-      ])
-      const batchData = await batchRes.json() as Array<{ id: number; result: Record<string, string> | null }>
+    let usedRpc = ''
 
-      receipt = batchData.find(r => r.id === 1)?.result ?? null
-      tx = batchData.find(r => r.id === 2)?.result ?? null
+    for (const rpc of rpcsToTry) {
+      console.log(`[Payment] Trying RPC: ${rpc}`)
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const batchRes = await fetchRpcWithTimeout(rpc, [
+          { jsonrpc: '2.0', method: 'eth_getTransactionReceipt', params: [txHash], id: 1 },
+          { jsonrpc: '2.0', method: 'eth_getTransactionByHash', params: [txHash], id: 2 },
+        ])
+        const batchData = await batchRes.json() as Array<{ id: number; result: Record<string, string> | null }>
 
-      if (receipt) break // Transaction confirmed
-      // Wait before retrying (1s, 2s, 2s, 3s)
-      const delay = [1000, 2000, 2000, 3000, 3000][attempt]
-      console.log(`[Payment] Tx not confirmed yet, retry ${attempt + 1}/5 in ${delay}ms...`)
-      await new Promise(r => setTimeout(r, delay))
+        receipt = batchData.find(r => r.id === 1)?.result ?? null
+        tx = batchData.find(r => r.id === 2)?.result ?? null
+
+        if (receipt) { usedRpc = rpc; break }
+        const delay = [1000, 2000, 2000, 3000, 3000][attempt]
+        console.log(`[Payment] Tx not confirmed on ${rpc === MONAD_RPC ? 'mainnet' : 'testnet'}, retry ${attempt + 1}/5 in ${delay}ms...`)
+        await new Promise(r => setTimeout(r, delay))
+      }
+      if (receipt) break
+      console.log(`[Payment] Not found on ${rpc === MONAD_RPC ? 'mainnet' : 'testnet'}, trying next RPC...`)
     }
 
     if (!receipt) return { verified: false, error: 'Transaction not confirmed after 10s' }
