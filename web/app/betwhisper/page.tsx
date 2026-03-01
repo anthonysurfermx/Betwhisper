@@ -608,6 +608,28 @@ export default function BetWhisperLanding() {
             <p className="text-[12px] text-[--text-tertiary] mt-4 font-mono">
               Deposit tx and withdrawal tx are cryptographically unlinkable. Verified by zero-knowledge proofs on Monad. Provably secure.
             </p>
+
+            {/* View Full Architecture CTA */}
+            <a
+              href="/architecture.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-2 mt-6 px-5 py-2.5 border border-[#836EF9]/30 bg-[#836EF9]/5 hover:bg-[#836EF9]/10 text-[13px] text-[#836EF9] font-mono tracking-wide transition-all duration-700 ${
+                privacy.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '1800ms' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18" />
+                <path d="M9 21V9" />
+              </svg>
+              VIEW FULL SYSTEM ARCHITECTURE
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 17L17 7" />
+                <path d="M7 7h10v10" />
+              </svg>
+            </a>
           </div>
         </div>
       </section>

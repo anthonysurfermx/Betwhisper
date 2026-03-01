@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BetWhisper — System Architecture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a26;
+      --border: rgba(255,255,255,0.06);
+      --border2: rgba(255,255,255,0.12);
+      --text: #e4e4e7;
+      --text-dim: rgba(255,255,255,0.45);
+      --text-muted: rgba(255,255,255,0.25);
+      --purple: #836EF9;
+      --purple-dim: rgba(131,110,249,0.15);
+      --green: #10b981;
+      --green-dim: rgba(16,185,129,0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
+      --amber: #f59e0b;
+      --amber-dim: rgba(245,158,11,0.12);
+      --blue: #3b82f6;
+      --blue-dim: rgba(59,130,246,0.12);
+      --cyan: #06b6d4;
+      --cyan-dim: rgba(6,182,212,0.12);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono { font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace; }
+
+    /* ─── Header ─── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 24px 0;
+      background: linear-gradient(180deg, rgba(131,110,249,0.03) 0%, transparent 100%);
+    }
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: var(--purple-dim);
+      border: 1px solid rgba(131,110,249,0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--purple);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .header-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--purple);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .header h1 span { color: var(--purple); }
+    .header p {
+      font-size: 15px;
+      color: var(--text-dim);
+      max-width: 600px;
+    }
+
+    /* ─── Container ─── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* ─── Section ─── */
+    .section {
+      padding: 48px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .section:last-child { border-bottom: none; }
+
+    .section-label {
+      font-size: 9px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 24px;
+    }
+
+    /* ─── Cards ─── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .icon {
+      width: 20px; height: 20px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    /* ─── Flow Diagram ─── */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+    }
+    .flow-step {
+      display: flex;
+      gap: 20px;
+      position: relative;
+    }
+    .flow-line {
+      width: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .flow-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 2px solid;
+      background: var(--bg);
+      z-index: 2;
+      flex-shrink: 0;
+    }
+    .flow-connector {
+      width: 2px;
+      flex: 1;
+      min-height: 20px;
+    }
+    .flow-content {
+      flex: 1;
+      padding-bottom: 24px;
+    }
+    .flow-content h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .flow-content p {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    /* ─── Code Block ─── */
+    .code-block {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .code-block pre {
+      font-family: 'JetBrains Mono', 'SF Mono', monospace;
+      font-size: 12px;
+      line-height: 1.8;
+      color: var(--text-dim);
+      white-space: pre;
+    }
+    .code-block .comment { color: rgba(255,255,255,0.2); }
+    .code-block .keyword { color: var(--purple); }
+    .code-block .string { color: var(--green); }
+    .code-block .type { color: var(--cyan); }
+    .code-block .highlight { color: #e4e4e7; font-weight: 600; }
+    .code-block .dim { color: rgba(255,255,255,0.15); }
+
+    /* ─── Grid ─── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Table ─── */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      background: var(--surface2);
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    tr:last-child td { border-bottom: none; }
+    td.highlight { color: var(--text); font-weight: 500; }
+
+    /* ─── Tags ─── */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .tag-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(131,110,249,0.2); }
+    .tag-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.2); }
+    .tag-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+    .tag-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+    .tag-blue { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(59,130,246,0.2); }
+    .tag-cyan { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(6,182,212,0.2); }
+
+    /* ─── Privacy Comparison ─── */
+    .compare-box {
+      border-radius: 8px;
+      padding: 24px;
+      border: 1px solid;
+    }
+    .compare-box.bad {
+      background: var(--red-dim);
+      border-color: rgba(239,68,68,0.15);
+    }
+    .compare-box.good {
+      background: var(--green-dim);
+      border-color: rgba(16,185,129,0.15);
+    }
+    .compare-box h4 {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .compare-box .line {
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .compare-box .line .arrow {
+      color: var(--text-muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    /* ─── Architecture Diagram ─── */
+    .arch-diagram {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 32px;
+      overflow-x: auto;
+    }
+    .arch-diagram pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      color: var(--text-dim);
+      white-space: pre;
+    }
+
+    /* ─── DB Schema ─── */
+    .schema-table {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .schema-header {
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .schema-header h4 {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .schema-header .count {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .schema-body {
+      padding: 12px 16px;
+    }
+    .schema-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 0;
+      font-size: 12px;
+    }
+    .schema-row .col-name {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      min-width: 160px;
+      font-size: 11px;
+    }
+    .schema-row .col-type {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      font-size: 10px;
+      min-width: 100px;
+    }
+    .schema-row .col-note {
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+    .schema-key {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+    .schema-key.pk { background: var(--amber-dim); color: var(--amber); }
+    .schema-key.uq { background: var(--purple-dim); color: var(--purple); }
+    .schema-key.fk { background: var(--blue-dim); color: var(--blue); }
+    .schema-key.idx { background: var(--cyan-dim); color: var(--cyan); }
+
+    /* ─── Timeline ─── */
+    .timeline {
+      position: relative;
+      padding-left: 80px;
+    }
+    .timeline-item {
+      position: relative;
+      padding-bottom: 20px;
+      padding-left: 24px;
+      border-left: 2px solid var(--border);
+    }
+    .timeline-item:last-child { border-left-color: transparent; }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -6px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid;
+    }
+    .timeline-time {
+      position: absolute;
+      left: -104px;
+      top: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      width: 60px;
+      text-align: right;
+    }
+    .timeline-item h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .timeline-item p {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .timeline-item.purple::before { border-color: var(--purple); }
+    .timeline-item.green::before { border-color: var(--green); }
+    .timeline-item.blue::before { border-color: var(--blue); }
+    .timeline-item.amber::before { border-color: var(--amber); }
+    .timeline-item.cyan::before { border-color: var(--cyan); }
+
+    /* ─── Stat boxes ─── */
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-box .value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+    .stat-box .label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ─── Separator ─── */
+    .sep {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+
+    /* ─── Footer ─── */
+    .footer {
+      padding: 32px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    .footer p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .footer a { color: var(--purple); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      .header h1 { font-size: 24px; }
+      .arch-diagram { padding: 16px; }
+      .arch-diagram pre { font-size: 9px; }
+      .timeline { padding-left: 60px; }
+      .timeline-time { left: -76px; width: 50px; font-size: 9px; }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- HEADER                                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-badge">
+      <span class="dot"></span>
+      System Architecture Document
+    </div>
+    <h1><span>BetWhisper</span> — Technical Deep Dive</h1>
+    <p>Voice-first AI agent for prediction markets with ZK privacy via Unlink Protocol. Built for the Monad Privacy Hackathon (Foundry NYC, Feb 28 – Mar 2, 2026).</p>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: WHAT IS BETWHISPER                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Overview</div>
+  <div class="section-title">What is BetWhisper?</div>
+
+  <p style="font-size: 14px; color: var(--text-dim); margin-bottom: 24px; max-width: 700px;">
+    BetWhisper lets users trade on prediction markets using <strong style="color: var(--text);">voice</strong> (Meta Ray-Ban glasses) or <strong style="color: var(--text);">chat</strong> (web/iOS). Users pay in <strong style="color: var(--purple);">MON</strong> on Monad — our server relays the intent and executes on <strong style="color: var(--text);">Polymarket CLOB</strong> (Polygon) using pre-funded USDC. With Unlink, the link between a user's deposit and their bet is <strong style="color: var(--green);">cryptographically broken by ZK proofs</strong>.
+  </p>
+
+  <div class="grid-3">
+    <div class="stat-box">
+      <div class="value" style="color: var(--purple);">2</div>
+      <div class="label">Chains (Monad + Polygon)</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" style="color: var(--green);">ZK</div>
+      <div class="label">Privacy via Unlink</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" style="color: var(--amber);">~14s</div>
+      <div class="label">End-to-end trade latency</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: WHY UNLINK?                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Privacy</div>
+  <div class="section-title">Why We Need Unlink</div>
+
+  <div class="grid-2">
+    <div class="compare-box bad">
+      <h4><span style="font-size: 16px;">✗</span> Without Unlink (Direct Path)</h4>
+      <div class="line"><span class="arrow">→</span> User (0xABC) sends 238 MON to BetWhisper (0x530)</div>
+      <div class="line"><span class="arrow">→</span> BetWhisper executes: Lakers YES $5</div>
+      <div class="sep" style="background: rgba(239,68,68,0.15);"></div>
+      <div class="line" style="color: var(--red);">
+        <span class="arrow">⚠</span>
+        <strong>Anyone on the explorer sees: "0xABC bet on Lakers for $5"</strong>
+      </div>
+      <div class="line"><span class="arrow">→</span> Identity: PUBLIC</div>
+      <div class="line"><span class="arrow">→</span> Position: PUBLIC</div>
+      <div class="line"><span class="arrow">→</span> Amount: PUBLIC</div>
+    </div>
+
+    <div class="compare-box good">
+      <h4><span style="font-size: 16px;">✓</span> With Unlink (Private Path)</h4>
+      <div class="line"><span class="arrow">→</span> User (0xABC) deposits MON into Unlink Pool</div>
+      <div class="line"><span class="arrow">→</span> <strong style="color: var(--green);">ZK Transfer</strong> inside pool → BetWhisper wallet</div>
+      <div class="line"><span class="arrow">→</span> BetWhisper (0xDEF) withdraws from pool</div>
+      <div class="sep" style="background: rgba(16,185,129,0.15);"></div>
+      <div class="line" style="color: var(--green);">
+        <span class="arrow">✓</span>
+        <strong>Explorer shows 2 unrelated TXs. Zero link.</strong>
+      </div>
+      <div class="line"><span class="arrow">→</span> Identity: <strong style="color: var(--green);">HIDDEN</strong></div>
+      <div class="line"><span class="arrow">→</span> Position: <strong style="color: var(--green);">HIDDEN</strong></div>
+      <div class="line"><span class="arrow">→</span> Deposit ↔ Bet: <strong style="color: var(--green);">UNLINKABLE</strong></div>
+    </div>
+  </div>
+
+  <div style="margin-top: 24px;">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Unlink Operation</th>
+            <th>Amount</th>
+            <th>Sender</th>
+            <th>Recipient</th>
+            <th>Token</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="highlight">Deposit (EOA → Pool)</td>
+            <td><span class="tag tag-red">Public</span></td>
+            <td><span class="tag tag-red">Public</span></td>
+            <td><span class="tag tag-green">Private</span></td>
+            <td><span class="tag tag-red">Public</span></td>
+          </tr>
+          <tr>
+            <td class="highlight">Transfer (Pool → Pool)</td>
+            <td><span class="tag tag-green">Private</span></td>
+            <td><span class="tag tag-green">Private</span></td>
+            <td><span class="tag tag-green">Private</span></td>
+            <td><span class="tag tag-green">Private</span></td>
+          </tr>
+          <tr>
+            <td class="highlight">Withdraw (Pool → EOA)</td>
+            <td><span class="tag tag-red">Public</span></td>
+            <td><span class="tag tag-green">Private</span></td>
+            <td><span class="tag tag-red">Public</span></td>
+            <td><span class="tag tag-red">Public</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: SYSTEM ARCHITECTURE                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Architecture</div>
+  <div class="section-title">Full System Diagram</div>
+
+  <div class="arch-diagram">
+    <pre>
+<span style="color:var(--text-muted);">┌─────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--text);font-weight:600;">CLIENT LAYER</span>                                                              <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--purple);">Web (/predict)</span>                         <span style="color:var(--cyan);">iOS (Ray-Ban Glasses)</span>              <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  • React Chat UI                      • Gemini 2.5 Flash (native audio)   <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  • WalletConnect (Reown AppKit)        • Face ID authentication            <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  • PIN → JWT auth                      • Auto-confirm after 3s             <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  • @unlink-xyz/react hooks             • Gemini tool-calling               <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">└──────────────────┬──────────────────────────────────┬───────────────────────┘</span>
+                   <span style="color:var(--text-muted);">│</span>                                  <span style="color:var(--text-muted);">│</span>
+                   <span style="color:var(--text-muted);">│</span>  User says: <span style="color:var(--amber);">"$5 Lakers YES"</span>       <span style="color:var(--text-muted);">│</span>
+                   <span style="color:var(--text-muted);">▼</span>                                  <span style="color:var(--text-muted);">▼</span>
+<span style="color:var(--text-muted);">┌─────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--text);font-weight:600;">PAYMENT LAYER</span>  <span style="color:var(--text-muted);">(Monad Chain)</span>                                              <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--red);">PATH A: Direct</span>                         <span style="color:var(--green);">PATH B: Private (Unlink)</span>          <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  ─────────────────                      ─────────────────────────          <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  User EOA ──MON──▶ BetWhisper           User EOA ──MON──▶ <span style="color:var(--green);">Unlink Pool</span>     <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--red);">(fully public on-chain)</span>                <span style="color:var(--green);">(deposit public, recipient HIDDEN)</span>  <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                     <span style="color:var(--text-muted);">│</span>                    <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  Chain: <span style="color:var(--purple);">Monad Mainnet (143)</span>              <span style="color:var(--green);">ZK Transfer</span> (amt, from, to: ALL HIDDEN)   <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  Deposit: <span style="color:var(--text-dim);">0x530a...c3</span>                           <span style="color:var(--text-muted);">│</span>                    <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                          BetWhisper wallet receives       <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  Proof: <span style="color:var(--amber);">monadTxHash</span>                     Proof: <span style="color:var(--amber);">unlinkTxHash</span>                <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                          Pool: <span style="color:var(--text-dim);">0x0813...a254</span>                <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                          Chain: <span style="color:var(--green);">Monad Testnet (10143)</span>       <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">└──────────────────┬──────────────────────────────────┬───────────────────────┘</span>
+                   <span style="color:var(--text-muted);">│</span>                                  <span style="color:var(--text-muted);">│</span>
+                   <span style="color:var(--text-muted);">└──────────────────┬───────────────┘</span>
+                                    <span style="color:var(--text-muted);">│</span>  POST <span style="color:var(--purple);">/api/bet/execute</span>
+                                    <span style="color:var(--text-muted);">▼</span>
+<span style="color:var(--text-muted);">┌─────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--text);font-weight:600;">SERVER EXECUTION LAYER</span>  <span style="color:var(--text-muted);">(Vercel Serverless — Next.js API Routes)</span>              <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--amber);">1. VALIDATE</span>                                                             <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     • amount ≤ $100 per trade                                            <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     • daily spend ≤ $500 per wallet                                      <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     • rate limit: 5 trades / 60s per wallet                               <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     • replay protection: UNIQUE(monad_tx_hash)                            <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--blue);">2. VERIFY PAYMENT</span>                                                       <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     Direct: eth_getTransactionReceipt (5 retries) → oracle price check   <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     Unlink: <span style="color:var(--green);">wallet.sync()</span> → <span style="color:var(--green);">wallet.getNotes()</span> → match txHash+amount      <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--cyan);">3. RECORD</span>                                                               <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     INSERT INTO orders (..., status='pending', execution_mode)            <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     INSERT INTO pulse_trades (fuzzed GPS, bucketed amount)               <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     pulseBroadcaster.broadcast() → <span style="color:var(--green);">SSE to all map viewers</span>                <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--purple);">4. EXECUTE ON POLYMARKET CLOB</span>                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     Gamma API → resolve token IDs                                        <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     Order book → best price + 5% slippage                                <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     FOK market order → shares + fill price                               <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>     <span style="color:var(--text-muted);">Funded by: server's pre-funded USDC on Polygon</span>                       <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>                                                                           <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--green);">5. SUCCESS</span> → UPDATE orders, INSERT positions                             <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span>  <span style="color:var(--red);">   FAILURE</span> → status='clob_failed' → auto-refund cron                    <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">└─────────────────────────────────────────────────────────────────────────────┘</span>
+                                    <span style="color:var(--text-muted);">│</span>
+                   <span style="color:var(--text-muted);">┌───────────────┴───────────────┐</span>
+                   <span style="color:var(--text-muted);">▼</span>                               <span style="color:var(--text-muted);">▼</span>
+<span style="color:var(--text-muted);">┌────────────────────────────┐</span>   <span style="color:var(--text-muted);">┌───────────────────────────────────────┐</span>
+<span style="color:var(--text-muted);">│</span> <span style="color:var(--purple);">Polymarket CLOB</span>            <span style="color:var(--text-muted);">│</span>   <span style="color:var(--text-muted);">│</span> <span style="color:var(--green);">Social Pulse Map</span>  <span style="color:var(--text-dim);">(/pulse)</span>        <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span> Polygon Mainnet (137)      <span style="color:var(--text-muted);">│</span>   <span style="color:var(--text-muted);">│</span> Real-time heatmap via SSE            <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span> • Token resolution (Gamma) <span style="color:var(--text-muted);">│</span>   <span style="color:var(--text-muted);">│</span> • Thermal layer: public bets         <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span> • Order book + slippage    <span style="color:var(--text-muted);">│</span>   <span style="color:var(--text-muted);">│</span> • <span style="color:var(--green);">Emerald glow</span>: ZK private bets      <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">│</span> • FOK execution            <span style="color:var(--text-muted);">│</span>   <span style="color:var(--text-muted);">│</span> • Privacy: ±80m GPS, K-anonymity     <span style="color:var(--text-muted);">│</span>
+<span style="color:var(--text-muted);">└────────────────────────────┘</span>   <span style="color:var(--text-muted);">└───────────────────────────────────────┘</span></pre>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: INTENT RELAY MODEL                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Business Logic</div>
+  <div class="section-title">The Intent Relay Model</div>
+
+  <p style="font-size: 14px; color: var(--text-dim); margin-bottom: 24px; max-width: 700px;">
+    Polymarket runs on Polygon and requires USDC. Our users have MON on Monad. BetWhisper bridges this gap with an <strong style="color: var(--text);">intent relay</strong> pattern — the user expresses an intent (bet), pays in MON, and our server executes with its own USDC.
+  </p>
+
+  <div class="card">
+    <div class="arch-diagram" style="border: none; padding: 20px;">
+      <pre>
+<span style="color:var(--text);">User Intent</span>                    <span style="color:var(--text);">BetWhisper Server</span>                   <span style="color:var(--text);">Polymarket</span>
+<span style="color:var(--text-muted);">───────────</span>                    <span style="color:var(--text-muted);">─────────────────</span>                   <span style="color:var(--text-muted);">──────────</span>
+
+"Lakers YES $5"                Receives 238 MON payment             CLOB Order Book
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>                                    <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>  <span style="color:var(--purple);">238 MON ($5)</span>              <span style="color:var(--text-muted);">│</span>                                    <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">├────────────────────────▶</span>  Verifies MON payment                 <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>  <span style="color:var(--text-dim);">Monad chain</span>              <span style="color:var(--text-muted);">│</span>  (oracle: $0.021/MON)               <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>                                    <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>  <span style="color:var(--blue);">$5 USDC</span>                         <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">├──────────────────────────────────▶</span>  FOK Buy
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>  <span style="color:var(--text-dim);">Polygon chain</span>                     <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>  <span style="color:var(--text-dim);">(server's own USDC)</span>               <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>                           8.77 shares  <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">◀──────────────────────────────────┤</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>  <span style="color:var(--text-dim);">@ $0.57 per share</span>                 <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>  <span style="color:var(--green);">"✓ 8.77 shares"</span>          <span style="color:var(--text-muted);">│</span>                                    <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">◀────────────────────────┤</span>  Records position in DB              <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">│</span>                           <span style="color:var(--text-muted);">│</span>                                    <span style="color:var(--text-muted);">│</span></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: UNLINK SERVER INTEGRATION                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Unlink SDK Usage</div>
+  <div class="section-title">How We Use Unlink (Server-Side)</div>
+
+  <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px; max-width: 700px;">
+    Our server runs <span class="tag tag-green">@unlink-xyz/node</span> to maintain a persistent wallet inside the Unlink pool. When a user sends a private transfer, the server detects it via <code style="color: var(--green);">wallet.sync()</code> + <code style="color: var(--green);">wallet.getNotes()</code>.
+  </p>
+
+  <div class="card">
+    <div class="card-title">
+      <div class="icon" style="background: var(--green-dim); color: var(--green);">S</div>
+      Server Wallet — lib/unlink-server.ts
+    </div>
+    <div class="code-block">
+      <pre><span class="comment">// Initialize server Unlink wallet (singleton, cached across requests)</span>
+<span class="keyword">import</span> { initWallet, encodeAddress } <span class="keyword">from</span> <span class="string">'@unlink-xyz/node'</span>
+
+<span class="keyword">async function</span> <span class="highlight">getServerUnlinkWallet</span>() {
+  <span class="keyword">const</span> wallet = <span class="keyword">await</span> initWallet({
+    chain: <span class="string">'monad-testnet'</span>,     <span class="comment">// Monad Testnet (10143)</span>
+    setup: <span class="keyword">false</span>,                <span class="comment">// Don't create new wallet</span>
+    sync: <span class="keyword">false</span>,                 <span class="comment">// Manual sync for control</span>
+  })
+  <span class="keyword">await</span> wallet.seed.importMnemonic(process.env.<span class="type">UNLINK_SERVER_MNEMONIC</span>)
+  <span class="keyword">await</span> wallet.accounts.create()
+  <span class="keyword">await</span> wallet.sync()            <span class="comment">// 2-3s latency (syncs from Gateway)</span>
+  <span class="keyword">return</span> wallet
+}
+
+<span class="comment">// Get server's Unlink address (for receiving private transfers)</span>
+<span class="keyword">async function</span> <span class="highlight">getServerUnlinkAddress</span>(): <span class="type">string</span> {
+  <span class="keyword">const</span> wallet = <span class="keyword">await</span> getServerUnlinkWallet()
+  <span class="keyword">return</span> encodeAddress(wallet.accounts[0].masterPublicKey)
+  <span class="comment">// → "unlink1q7k3j8x..." (bech32m format)</span>
+}
+
+<span class="comment">// Verify a private transfer arrived (match by txHash + amount)</span>
+<span class="keyword">async function</span> <span class="highlight">verifyUnlinkTransfer</span>(txHash, expectedAmount, token) {
+  <span class="keyword">const</span> wallet = <span class="keyword">await</span> getServerUnlinkWallet()
+  <span class="keyword">await</span> wallet.sync()            <span class="comment">// Re-sync to see new notes</span>
+  <span class="keyword">const</span> notes = <span class="keyword">await</span> wallet.getNotes()
+  <span class="keyword">const</span> match = notes.find(n =>
+    n.txHash === txHash &&
+    n.amount === expectedAmount &&
+    n.token === token
+  )
+  <span class="keyword">if</span> (!match) {
+    <span class="keyword">await</span> sleep(3000)            <span class="comment">// Wait for relay propagation</span>
+    <span class="keyword">await</span> wallet.sync()          <span class="comment">// Try again</span>
+    <span class="comment">// ... retry logic</span>
+  }
+  <span class="keyword">return</span> { verified: !!match, note: match }
+}</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <div class="icon" style="background: var(--purple-dim); color: var(--purple);">C</div>
+      Client Flow — @unlink-xyz/react
+    </div>
+    <div class="code-block">
+      <pre><span class="comment">// Client-side: deposit + private transfer</span>
+<span class="keyword">import</span> { useDeposit, useTransfer } <span class="keyword">from</span> <span class="string">'@unlink-xyz/react'</span>
+
+<span class="comment">// Step 1: Deposit MON into Unlink pool (public → private)</span>
+<span class="keyword">const</span> { execute: deposit } = useDeposit()
+<span class="keyword">await</span> deposit({
+  depositor: userEOA,            <span class="comment">// User's connected wallet (0xABC...)</span>
+  deposits: [{
+    token: <span class="type">MON_TOKEN</span>,            <span class="comment">// 0xEeee...EEeE (native MON)</span>
+    amount: parseEther(<span class="string">'238'</span>)   <span class="comment">// ~$5 worth of MON</span>
+  }]
+})
+<span class="comment">// TX visible on explorer: "0xABC deposited to pool"</span>
+<span class="comment">// Recipient: HIDDEN by ZK proof</span>
+
+<span class="comment">// Step 2: Private transfer to BetWhisper server wallet</span>
+<span class="keyword">const</span> { execute: transfer } = useTransfer()
+<span class="keyword">const</span> result = <span class="keyword">await</span> transfer({
+  transfers: [{
+    token: <span class="type">MON_TOKEN</span>,
+    recipient: <span class="string">"unlink1q7k3j8x..."</span>,  <span class="comment">// Server's Unlink address</span>
+    amount: parseEther(<span class="string">'238'</span>)
+  }]
+})
+<span class="comment">// Amount: HIDDEN | Sender: HIDDEN | Recipient: HIDDEN</span>
+<span class="comment">// This is the core privacy guarantee</span>
+
+<span class="comment">// Step 3: Tell server to verify + execute bet</span>
+<span class="keyword">await</span> fetch(<span class="string">'/api/bet/execute'</span>, {
+  method: <span class="string">'POST'</span>,
+  body: JSON.stringify({
+    unlinkTxHash: result.txHash,  <span class="comment">// Proof of private transfer</span>
+    amountUSD: 5,
+    conditionId: <span class="string">'0x...'</span>,
+    side: <span class="string">'Yes'</span>,
+    executionMode: <span class="string">'unlink'</span>
+  })
+})</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 6: DATABASE SCHEMA                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Database</div>
+  <div class="section-title">PostgreSQL Schema (Neon Serverless)</div>
+
+  <!-- orders -->
+  <div class="schema-table">
+    <div class="schema-header">
+      <h4>
+        <span style="color: var(--purple);">■</span> orders
+        <span style="font-weight: 400; color: var(--text-dim); font-size: 11px; margin-left: 8px;">— Every trade, pending or completed</span>
+      </h4>
+      <span class="count">18 columns</span>
+    </div>
+    <div class="schema-body">
+      <div class="schema-row"><span class="schema-key pk">PK</span> <span class="col-name">id</span> <span class="col-type">SERIAL</span> <span class="col-note"></span></div>
+      <div class="schema-row"><span class="schema-key uq">UQ</span> <span class="col-name">monad_tx_hash</span> <span class="col-type">TEXT</span> <span class="col-note">Replay protection — same tx can't execute twice</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">unlink_tx_hash</span> <span class="col-type">TEXT</span> <span class="col-note">Private transfer hash (Unlink path only)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">wallet_address</span> <span class="col-type">TEXT</span> <span class="col-note">User's EOA (for portfolio lookup)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">market_slug</span> <span class="col-type">TEXT</span> <span class="col-note">"will-lakers-win-tonight"</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">condition_id</span> <span class="col-type">TEXT</span> <span class="col-note">Polymarket market identifier</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">side</span> <span class="col-type">TEXT</span> <span class="col-note">'Yes' | 'No'</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">amount_usd</span> <span class="col-type">NUMERIC</span> <span class="col-note">Requested amount in USD</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">verified_amount_usd</span> <span class="col-type">NUMERIC</span> <span class="col-note">Server-verified amount (oracle re-check)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">mon_paid</span> <span class="col-type">TEXT</span> <span class="col-note">Actual MON received</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">mon_price_usd</span> <span class="col-type">NUMERIC</span> <span class="col-note">MON price at time of trade (server oracle)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">execution_mode</span> <span class="col-type">TEXT</span> <span class="col-note"><span class="tag tag-blue" style="font-size:9px;">'direct'</span> or <span class="tag tag-green" style="font-size:9px;">'unlink'</span></span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">status</span> <span class="col-type">TEXT</span> <span class="col-note">'pending' → 'success' | 'clob_failed'</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">polygon_tx_hash</span> <span class="col-type">TEXT</span> <span class="col-note">CLOB execution hash on Polygon</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">order_id</span> <span class="col-type">TEXT</span> <span class="col-note">Polymarket order ID</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">shares</span> <span class="col-type">NUMERIC</span> <span class="col-note">Number of shares purchased</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">fill_price</span> <span class="col-type">NUMERIC</span> <span class="col-note">Actual execution price (e.g. 0.57)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">refund_status</span> <span class="col-type">TEXT</span> <span class="col-note">null → 'processing' → 'refunded' | 'failed'</span></div>
+    </div>
+  </div>
+
+  <!-- positions -->
+  <div class="schema-table">
+    <div class="schema-header">
+      <h4>
+        <span style="color: var(--cyan);">■</span> positions
+        <span style="font-weight: 400; color: var(--text-dim); font-size: 11px; margin-left: 8px;">— User portfolio (aggregated shares per market)</span>
+      </h4>
+      <span class="count">14 columns</span>
+    </div>
+    <div class="schema-body">
+      <div class="schema-row"><span class="schema-key pk">PK</span> <span class="col-name">id</span> <span class="col-type">SERIAL</span></div>
+      <div class="schema-row"><span class="schema-key idx">IDX</span> <span class="col-name">wallet_address</span> <span class="col-type">TEXT</span> <span class="col-note">User's EOA</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">market_slug</span> <span class="col-type">TEXT</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">condition_id</span> <span class="col-type">TEXT</span></div>
+      <div class="schema-row"><span class="schema-key idx">IDX</span> <span class="col-name">token_id</span> <span class="col-type">TEXT</span> <span class="col-note">Polymarket YES/NO token</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">side</span> <span class="col-type">TEXT</span> <span class="col-note">'Yes' | 'No'</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">shares</span> <span class="col-type">NUMERIC</span> <span class="col-note">Current share count (decremented on sell)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">avg_price</span> <span class="col-type">NUMERIC</span> <span class="col-note">Rolling average cost basis</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">total_usd</span> <span class="col-type">NUMERIC</span> <span class="col-note">Total USD invested in this position</span></div>
+    </div>
+  </div>
+
+  <!-- pulse_trades -->
+  <div class="schema-table">
+    <div class="schema-header">
+      <h4>
+        <span style="color: var(--green);">■</span> pulse_trades
+        <span style="font-weight: 400; color: var(--text-dim); font-size: 11px; margin-left: 8px;">— Geo-tagged trades for the heatmap (privacy-preserving)</span>
+      </h4>
+      <span class="count">9 columns</span>
+    </div>
+    <div class="schema-body">
+      <div class="schema-row"><span class="schema-key pk">PK</span> <span class="col-name">id</span> <span class="col-type">SERIAL</span></div>
+      <div class="schema-row"><span class="schema-key idx">IDX</span> <span class="col-name">condition_id</span> <span class="col-type">TEXT</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">side</span> <span class="col-type">TEXT</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">amount_bucket</span> <span class="col-type">TEXT</span> <span class="col-note">'1-10' | '10-50' | '50-100' | '100+' (not exact)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">lat</span> <span class="col-type">NUMERIC</span> <span class="col-note" style="color: var(--green);">Fuzzed ±80m (never exact location)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">lng</span> <span class="col-type">NUMERIC</span> <span class="col-note" style="color: var(--green);">Fuzzed ±80m</span></div>
+      <div class="schema-row"><span class="schema-key idx">IDX</span> <span class="col-name">timestamp_bucket</span> <span class="col-type">BIGINT</span> <span class="col-note">Rounded to 60s windows (no exact time)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">wallet_hash</span> <span class="col-type">TEXT</span> <span class="col-note">Truncated hash (first 10 chars only)</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">execution_mode</span> <span class="col-type">TEXT</span> <span class="col-note"><span class="tag tag-green" style="font-size:9px;">'unlink'</span> = ZK circle glow on map</span></div>
+    </div>
+  </div>
+
+  <!-- users -->
+  <div class="schema-table">
+    <div class="schema-header">
+      <h4>
+        <span style="color: var(--amber);">■</span> users
+        <span style="font-weight: 400; color: var(--text-dim); font-size: 11px; margin-left: 8px;">— PIN authentication (web only)</span>
+      </h4>
+      <span class="count">6 columns</span>
+    </div>
+    <div class="schema-body">
+      <div class="schema-row"><span class="schema-key pk">PK</span> <span class="col-name">id</span> <span class="col-type">SERIAL</span></div>
+      <div class="schema-row"><span class="schema-key uq">UQ</span> <span class="col-name">wallet_address</span> <span class="col-type">TEXT</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">pin_hash</span> <span class="col-type">TEXT</span> <span class="col-note">bcrypt hash of 4-digit PIN</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">failed_attempts</span> <span class="col-type">INTEGER</span> <span class="col-note">Lock after 3 failures</span></div>
+      <div class="schema-row"><span style="width:20px;display:inline-block;"></span> <span class="col-name">locked_until</span> <span class="col-type">TIMESTAMP</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 7: TRADE LIFECYCLE                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Lifecycle</div>
+  <div class="section-title">Full Trade Timeline ($5 Lakers YES via Unlink)</div>
+
+  <div class="timeline" style="margin-top: 32px;">
+    <div class="timeline-item purple">
+      <span class="timeline-time">t = 0s</span>
+      <h4>User Intent</h4>
+      <p>User says "5 dollars Lakers yes" (voice via Ray-Ban) or types in chat. UI shows confirmation card with amount and market details.</p>
+    </div>
+
+    <div class="timeline-item purple">
+      <span class="timeline-time">t = 3s</span>
+      <h4>Confirm (auto or click)</h4>
+      <p>iOS: auto-confirms after 3-second countdown. Web: user clicks "Confirm Trade" button.</p>
+    </div>
+
+    <div class="timeline-item green">
+      <span class="timeline-time">t = 3.1s</span>
+      <h4 style="color: var(--green);">Deposit MON → Unlink Pool</h4>
+      <p>On-chain transaction on Monad Testnet. <span class="tag tag-red" style="font-size:9px;">PUBLIC</span> deposit amount, <span class="tag tag-green" style="font-size:9px;">HIDDEN</span> recipient. Uses <code>useDeposit()</code> from @unlink-xyz/react.</p>
+    </div>
+
+    <div class="timeline-item green">
+      <span class="timeline-time">t = 6s</span>
+      <h4 style="color: var(--green);">ZK Private Transfer</h4>
+      <p>Inside the pool: user → BetWhisper server wallet. Amount <span class="tag tag-green" style="font-size:9px;">HIDDEN</span>, sender <span class="tag tag-green" style="font-size:9px;">HIDDEN</span>, recipient <span class="tag tag-green" style="font-size:9px;">HIDDEN</span>. This is the core privacy guarantee.</p>
+    </div>
+
+    <div class="timeline-item blue">
+      <span class="timeline-time">t = 9s</span>
+      <h4>POST /api/bet/execute</h4>
+      <p>Client sends <code>{unlinkTxHash, amountUSD: 5, conditionId, side: 'Yes', executionMode: 'unlink'}</code> to the server.</p>
+    </div>
+
+    <div class="timeline-item blue">
+      <span class="timeline-time">t = 9.2s</span>
+      <h4>Server Validates</h4>
+      <p>Checks daily spend limit ($500), rate limit (5/min), replay protection (unique tx hash). All pass.</p>
+    </div>
+
+    <div class="timeline-item cyan">
+      <span class="timeline-time">t = 12s</span>
+      <h4>Unlink Verification</h4>
+      <p>Server calls <code>wallet.sync()</code> (2-3s latency) then <code>wallet.getNotes()</code>. Matches incoming note by txHash + amount + token. Transfer confirmed.</p>
+    </div>
+
+    <div class="timeline-item amber">
+      <span class="timeline-time">t = 12.1s</span>
+      <h4>Record + Broadcast</h4>
+      <p>INSERT into <code>orders</code> (status='pending') and <code>pulse_trades</code> (fuzzed location). SSE broadcast to all map viewers — trade appears on heatmap instantly.</p>
+    </div>
+
+    <div class="timeline-item purple">
+      <span class="timeline-time">t = 12.2s</span>
+      <h4>Execute on Polymarket CLOB</h4>
+      <p>Gamma API → resolve token IDs. Order book → best price $0.57. Apply 5% slippage → $0.5985. FOK market order with server's pre-funded USDC on Polygon.</p>
+    </div>
+
+    <div class="timeline-item green">
+      <span class="timeline-time">t = 14s</span>
+      <h4 style="color: var(--green);">Trade Complete</h4>
+      <p>Polymarket confirms: 8.77 shares @ $0.57. Order status → 'success'. Position recorded. User sees "✓ 8.77 shares Lakers YES" in chat. Green ZK glow appears on map.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 8: API ROUTES                                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">API Surface</div>
+  <div class="section-title">All Server Endpoints</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Endpoint</th>
+          <th>Purpose</th>
+          <th>Auth</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="4" style="background:var(--surface2);color:var(--text-muted);font-size:9px;letter-spacing:2px;font-weight:600;">TRADE EXECUTION</td></tr>
+        <tr>
+          <td><span class="tag tag-amber">POST</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/bet/execute</td>
+          <td>Verify payment + execute CLOB order</td>
+          <td>Wallet signature</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-amber">POST</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/bet/sell</td>
+          <td>Sell position + MON cashout</td>
+          <td>JWT or Face ID</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-amber">POST</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/bet</td>
+          <td>Record position (after CLOB success)</td>
+          <td>—</td>
+        </tr>
+
+        <tr><td colspan="4" style="background:var(--surface2);color:var(--text-muted);font-size:9px;letter-spacing:2px;font-weight:600;">MARKET DATA</td></tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/markets</td>
+          <td>Search + trending markets (Polymarket)</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/markets/history</td>
+          <td>Historical price data</td>
+          <td>—</td>
+        </tr>
+
+        <tr><td colspan="4" style="background:var(--surface2);color:var(--text-muted);font-size:9px;letter-spacing:2px;font-weight:600;">USER PORTFOLIO</td></tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/user/balance</td>
+          <td>Positions + PnL + current prices</td>
+          <td>JWT</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/user/history</td>
+          <td>Last 30 orders with status</td>
+          <td>JWT</td>
+        </tr>
+
+        <tr><td colspan="4" style="background:var(--surface2);color:var(--text-muted);font-size:9px;letter-spacing:2px;font-weight:600;">UNLINK PRIVACY</td></tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/unlink/address</td>
+          <td>Server's Unlink address (unlink1...)</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/unlink/status</td>
+          <td>Wallet health, balances, sync timing</td>
+          <td>—</td>
+        </tr>
+
+        <tr><td colspan="4" style="background:var(--surface2);color:var(--text-muted);font-size:9px;letter-spacing:2px;font-weight:600;">SOCIAL PULSE MAP</td></tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/pulse/heatmap</td>
+          <td>Aggregated heatmap data + stats</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/pulse/stream</td>
+          <td>SSE real-time trade feed</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-amber">POST</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/pulse/seed</td>
+          <td>Generate demo narrative data</td>
+          <td>—</td>
+        </tr>
+
+        <tr><td colspan="4" style="background:var(--surface2);color:var(--text-muted);font-size:9px;letter-spacing:2px;font-weight:600;">AUTH & SYSTEM</td></tr>
+        <tr>
+          <td><span class="tag tag-amber">POST</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/user/pin/setup</td>
+          <td>Register 4-digit PIN (bcrypt)</td>
+          <td>Wallet</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-amber">POST</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/user/pin/verify</td>
+          <td>Verify PIN → return JWT (1hr)</td>
+          <td>Wallet + PIN</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/cron/refund</td>
+          <td>Auto-refund failed CLOB orders</td>
+          <td>CRON_SECRET</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">GET</span></td>
+          <td class="highlight mono" style="font-size:11px;">/api/mon-price</td>
+          <td>MON price oracle (multi-source consensus)</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 9: SAFETY & SECURITY                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Security</div>
+  <div class="section-title">Safety Mechanisms</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        <div class="icon" style="background: var(--red-dim); color: var(--red);">!</div>
+        Trade Safety
+      </div>
+      <div style="font-size: 12px; color: var(--text-dim); line-height: 2;">
+        <div><span class="tag tag-red" style="font-size:9px;">REPLAY</span> UNIQUE index on monad_tx_hash — same tx can't execute twice</div>
+        <div><span class="tag tag-amber" style="font-size:9px;">LIMIT</span> Max $100/trade, $500/day per wallet</div>
+        <div><span class="tag tag-amber" style="font-size:9px;">RATE</span> Max 5 trades per 60 seconds per wallet</div>
+        <div><span class="tag tag-purple" style="font-size:9px;">PRICE</span> Server re-fetches MON price (never trusts client)</div>
+        <div><span class="tag tag-blue" style="font-size:9px;">SLIP</span> 5% slippage cap on FOK orders</div>
+        <div><span class="tag tag-cyan" style="font-size:9px;">REFUND</span> Auto-refund cron with FOR UPDATE SKIP LOCKED</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <div class="icon" style="background: var(--green-dim); color: var(--green);">S</div>
+        Privacy Layers
+      </div>
+      <div style="font-size: 12px; color: var(--text-dim); line-height: 2;">
+        <div><span class="tag tag-green" style="font-size:9px;">UNLINK</span> ZK proofs break deposit → bet link</div>
+        <div><span class="tag tag-green" style="font-size:9px;">GPS</span> Location fuzzed ±80m server-side</div>
+        <div><span class="tag tag-green" style="font-size:9px;">AMOUNT</span> Bucketed (never exact amount on map)</div>
+        <div><span class="tag tag-green" style="font-size:9px;">TIME</span> Timestamps rounded to 60-second windows</div>
+        <div><span class="tag tag-green" style="font-size:9px;">WALLET</span> Hash truncated to 10 chars</div>
+        <div><span class="tag tag-green" style="font-size:9px;">K-ANON</span> Side breakdown only shown if ≥5 unique wallets</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 10: MON PRICE ORACLE                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Oracle</div>
+  <div class="section-title">MON Price — Multi-Source Consensus</div>
+
+  <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px; max-width: 700px;">
+    We never trust a single price source. The server fetches from 3 independent oracles in parallel, computes a median, and refuses all trades if sources disagree by more than 15%.
+  </p>
+
+  <div class="card">
+    <div class="arch-diagram" style="border: none; padding: 16px;">
+      <pre>
+<span style="color:var(--text);">Price Sources</span> (parallel, 4s timeout each)
+<span style="color:var(--text-muted);">─────────────────────────────────────────</span>
+
+  <span style="color:var(--amber);">1.</span> DeFi Llama Pro    <span style="color:var(--text-dim);">coins.llama.fi/prices/current/coingecko:monad</span>
+  <span style="color:var(--amber);">2.</span> CoinGecko         <span style="color:var(--text-dim);">api.coingecko.com/api/v3/simple/price?ids=monad</span>
+  <span style="color:var(--amber);">3.</span> GeckoTerminal     <span style="color:var(--text-dim);">api.geckoterminal.com/api/v2/networks/monad/pools</span>
+
+<span style="color:var(--text);">Consensus Logic</span>
+<span style="color:var(--text-muted);">─────────────────────────────────────────</span>
+
+  <span style="color:var(--green);">3 sources agree</span>  →  Use median price         ✓ Trade executes
+  <span style="color:var(--amber);">2 sources agree</span>  →  Use median, warn          ✓ Trade executes
+  <span style="color:var(--amber);">1 source only</span>    →  Use single, warn          ✓ Trade executes
+  <span style="color:var(--red);">Sources disagree &gt;15%</span>  →  Circuit breaker open  ✗ <span style="color:var(--red);">REFUSE ALL TRADES</span>
+  <span style="color:var(--red);">0 sources respond</span>      →  Circuit breaker open  ✗ <span style="color:var(--red);">REFUSE ALL TRADES</span></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 11: SOCIAL PULSE MAP                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Visualization</div>
+  <div class="section-title">Social Pulse Map — Real-Time Heatmap</div>
+
+  <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px; max-width: 700px;">
+    Every trade that passes through BetWhisper appears on a live Mapbox heatmap. Public bets render as thermal heat; ZK private bets (via Unlink) render as <strong style="color: var(--green);">emerald green circles</strong> with a glow effect. Data flows in real-time via Server-Sent Events (SSE).
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        <div class="icon" style="background: var(--red-dim); color: var(--red);">H</div>
+        Thermal Heatmap Layer (Public Bets)
+      </div>
+      <p style="font-size: 12px; color: var(--text-dim); line-height: 1.8;">
+        Mapbox GL heatmap layer with thermal color ramp: transparent → deep blue → purple → red → orange → yellow. Intensity driven by bet amount bucket. Represents trades made via the <strong>direct</strong> MON payment path (fully visible on-chain).
+      </p>
+    </div>
+
+    <div class="card" style="border-color: rgba(16,185,129,0.15);">
+      <div class="card-title">
+        <div class="icon" style="background: var(--green-dim); color: var(--green);">Z</div>
+        <span style="color: var(--green);">ZK Circle Layer (Private Bets)</span>
+      </div>
+      <p style="font-size: 12px; color: var(--text-dim); line-height: 1.8;">
+        Two Mapbox circle layers: outer glow (large radius, low opacity emerald, blur: 1) + inner core (bright emerald, intensity-scaled color). Represents trades routed through <strong style="color: var(--green);">Unlink's privacy pool</strong> — cryptographically unlinkable.
+      </p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
+    <div class="card-title">
+      <div class="icon" style="background: var(--cyan-dim); color: var(--cyan);">→</div>
+      Data Pipeline
+    </div>
+    <div class="arch-diagram" style="border: none; padding: 16px;">
+      <pre>
+<span style="color:var(--text);">User places bet</span>
+     <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">▼</span>
+POST /api/bet/execute
+     <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">├──▶</span> <span style="color:var(--amber);">INSERT pulse_trades</span>
+     <span style="color:var(--text-muted);">│</span>     • Fuzz GPS: lat ± 0.0014°, lng ± 0.0018° <span style="color:var(--text-muted);">(~80m)</span>
+     <span style="color:var(--text-muted);">│</span>     • Bucket amount: $5 → <span style="color:var(--text-dim);">"1-10"</span>
+     <span style="color:var(--text-muted);">│</span>     • Bucket time: floor(now / 60s)
+     <span style="color:var(--text-muted);">│</span>     • execution_mode: <span style="color:var(--blue);">'direct'</span> | <span style="color:var(--green);">'unlink'</span>
+     <span style="color:var(--text-muted);">│</span>
+     <span style="color:var(--text-muted);">└──▶</span> <span style="color:var(--green);">pulseBroadcaster.broadcast()</span>
+           <span style="color:var(--text-muted);">│</span>
+           <span style="color:var(--text-muted);">▼</span>
+     SSE endpoint: GET /api/pulse/stream
+           <span style="color:var(--text-muted);">│</span>  <span style="color:var(--text-dim);">data: {"type":"trade","lat":40.75,"lng":-73.99,...}</span>
+           <span style="color:var(--text-muted);">▼</span>
+     Client: usePulseStream() hook
+           <span style="color:var(--text-muted);">│</span>
+           <span style="color:var(--text-muted);">├──▶</span> if <span style="color:var(--blue);">direct</span>  → add to thermal heatmap source
+           <span style="color:var(--text-muted);">└──▶</span> if <span style="color:var(--green);">unlink</span>  → add to ZK circle glow source</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 12: TECH STACK                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Stack</div>
+  <div class="section-title">Technology Stack</div>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title" style="color: var(--purple);">Frontend</div>
+      <div style="font-size: 11px; color: var(--text-dim); line-height: 2;">
+        Next.js 15 (React 19)<br>
+        Mapbox GL JS (heatmap)<br>
+        Reown AppKit (WalletConnect)<br>
+        @unlink-xyz/react<br>
+        Tailwind CSS<br>
+        Vercel (hosting)
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color: var(--cyan);">Backend</div>
+      <div style="font-size: 11px; color: var(--text-dim); line-height: 2;">
+        Next.js API Routes (serverless)<br>
+        Neon PostgreSQL (serverless)<br>
+        @unlink-xyz/node<br>
+        @polymarket/clob-client<br>
+        ethers.js v6<br>
+        SSE (Server-Sent Events)
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color: var(--amber);">Chains</div>
+      <div style="font-size: 11px; color: var(--text-dim); line-height: 2;">
+        Monad Mainnet (143) — payments<br>
+        Monad Testnet (10143) — Unlink<br>
+        Polygon (137) — Polymarket CLOB<br>
+        <br>
+        <span style="color:var(--green);">Unlink Pool:</span> 0x0813...a254<br>
+        <span style="color:var(--purple);">Deposit:</span> 0x530a...c3
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 13: WHAT'S REAL                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Status</div>
+  <div class="section-title">What's Real vs What's Next</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Status</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="highlight">Wallet Connect</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>WalletConnect v2 via Reown AppKit</td>
+        </tr>
+        <tr>
+          <td class="highlight">MON Payment (Direct)</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>On-chain on Monad mainnet, server-verified</td>
+        </tr>
+        <tr>
+          <td class="highlight">Unlink Deposit → Pool</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>On-chain on Monad Testnet</td>
+        </tr>
+        <tr>
+          <td class="highlight">ZK Private Transfer</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>Fully private: amount, sender, recipient ALL hidden</td>
+        </tr>
+        <tr>
+          <td class="highlight">Privacy (unlinkability)</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>Deposit and withdrawal are cryptographically unlinked</td>
+        </tr>
+        <tr>
+          <td class="highlight">Polymarket CLOB Execution</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>Real orders on Polygon mainnet (pre-funded $15 USDC)</td>
+        </tr>
+        <tr>
+          <td class="highlight">Social Pulse Map</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>Real-time SSE + Mapbox heatmap + ZK circle layer</td>
+        </tr>
+        <tr>
+          <td class="highlight">Voice AI (iOS)</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>Gemini 2.5 Flash native audio, EN/ES</td>
+        </tr>
+        <tr>
+          <td class="highlight">Auto-Refund System</td>
+          <td><span class="tag tag-green">LIVE</span></td>
+          <td>Cron job, atomic with SKIP LOCKED</td>
+        </tr>
+        <tr>
+          <td class="highlight">MON → USDC Swap</td>
+          <td><span class="tag tag-amber">NEXT</span></td>
+          <td>No DEX liquidity on Monad testnet yet</td>
+        </tr>
+        <tr>
+          <td class="highlight">Cross-chain Bridge</td>
+          <td><span class="tag tag-amber">NEXT</span></td>
+          <td>Testnet can't bridge to Polygon (planned: CCTP)</td>
+        </tr>
+        <tr>
+          <td class="highlight">DeFi Adapter (private swap)</td>
+          <td><span class="tag tag-amber">NEXT</span></td>
+          <td>Private MON→USDC swap inside the pool</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- FOOTER                                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="footer">
+  <div class="container">
+    <p style="margin-bottom: 8px;">
+      <strong style="color: var(--text);">BetWhisper</strong> — Voice-first AI agent for prediction markets with ZK privacy
+    </p>
+    <p>
+      Built for <strong style="color: var(--text);">Monad Privacy Hackathon</strong> at Foundry NYC (Feb 28 – Mar 2, 2026)
+    </p>
+    <p style="margin-top: 12px;">
+      <a href="https://betwhisper.ai">betwhisper.ai</a> &nbsp;·&nbsp;
+      <a href="https://betwhisper.ai/pulse">Live Pulse Map</a> &nbsp;·&nbsp;
+      <a href="https://betwhisper.ai/predict">Trade Now</a>
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
