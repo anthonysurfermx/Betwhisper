@@ -3747,7 +3747,7 @@ export default function PredictChat() {
         steps[2].status = 'confirmed'
         steps[2].detail = `${side.toUpperCase()} @ $${data.price?.toFixed(2)} · ${data.shares?.toFixed(1)} shares`
         steps[2].txHash = data.polygonTxHash || data.txHash
-        steps[2].explorerUrl = `https://polymarket.com/portfolio`
+        steps[2].explorerUrl = `https://polymarket.com/event/${slug}`
         updateTimeline(steps)
       } else {
         steps[1].status = 'error'
@@ -4244,7 +4244,7 @@ export default function PredictChat() {
       ? `🔒 ${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
       : `${side.toUpperCase()} @ $${clobResult.price.toFixed(2)} · ${clobResult.shares.toFixed(1)} shares`
     steps[posIdx].txHash = clobResult.txHash
-    steps[posIdx].explorerUrl = `https://polymarket.com/portfolio`
+    steps[posIdx].explorerUrl = `https://polymarket.com/event/${slug}`
     updateTimeline(steps)
     playSound('success')
 
@@ -4781,6 +4781,24 @@ export default function PredictChat() {
           <span className="text-[10px] font-mono text-amber-500/80">
             Proceed with caution — Beta v0.1. This is an experimental version and may involve financial risks.
           </span>
+        </div>
+      </div>
+
+      {/* Pro Mode Cross-Link */}
+      <div className="border-b border-cyan-500/20 bg-cyan-500/[0.03] flex-shrink-0">
+        <div className="max-w-2xl mx-auto px-4 py-1.5 flex items-center gap-2">
+          <Zap className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+          <span className="text-[10px] font-mono text-cyan-400/70">
+            Want the full dashboard?
+          </span>
+          <a
+            href="https://defimexico.org/agentic-world/claw-trader"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1"
+          >
+            Claw Trader PRO <ExternalLink className="w-2.5 h-2.5" />
+          </a>
         </div>
       </div>
 

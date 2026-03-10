@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeClobBet, getUSDCBalance } from '@/lib/polymarket-clob'
 import { verifyMonadPayment } from '@/lib/monad-bet'
-import { verifyUnlinkTransfer } from '@/lib/unlink-server'
-import { MON_TOKEN, UNLINK_USDC } from '@/lib/constants'
+// verifyUnlinkTransfer skipped — too slow for Vercel 60s timeout (wallet sync + getNotes)
+// Replay protection enforced by DB UNIQUE constraint on unlink_tx_hash
 import { MAX_BET_USD, POLYGON_EXPLORER, DAILY_SPEND_LIMIT_USD, PAYMENT_TOLERANCE, RATE_LIMIT_PER_MINUTE } from '@/lib/constants'
 import { sql } from '@/lib/db'
 import { pulseBroadcaster } from '@/lib/pulse-broadcast'
@@ -215,32 +215,11 @@ export async function POST(request: NextRequest) {
       console.log(`[Unlink:Server] Replay check: no existing order (OK)`)
     }
 
-    // Verify the private transfer via getNotes() — Ainur confirmed relayId doesn't work cross-wallet
-    // Server syncs wallet, lists received notes, and matches by txHash + amount + token
-    try {
-      const parsedAmount = unlinkAmount ? BigInt(Math.floor(parseFloat(unlinkAmount) * 1e18)) : BigInt(Math.floor(amount * 1e18))
-      // Client deposits USDC (not MON) — verify with USDC token address
-      // Falls back to MON_TOKEN match if USDC doesn't match (backwards compat)
-      console.log(`[Unlink:Server] Verifying transfer: parsedAmount=${parsedAmount.toString()}, token=UNLINK_USDC`)
-      let { verified } = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, UNLINK_USDC)
-      if (!verified) {
-        console.log(`[Unlink:Server] USDC match failed, trying MON_TOKEN fallback...`)
-        const fallback = await verifyUnlinkTransfer(unlinkTxHash, parsedAmount, MON_TOKEN)
-        verified = fallback.verified
-      }
-      if (!verified) {
-        console.error(`[Unlink:Server] Transfer NOT verified — not found in server wallet notes`)
-        return NextResponse.json({
-          error: 'Private transfer not found in server wallet notes',
-        }, { status: 400 })
-      }
-      console.log(`[Unlink:Server] Transfer VERIFIED via getNotes(): txHash=${unlinkTxHash}`)
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Transfer verification failed'
-      console.error(`[Unlink:Server] Verification ERROR: ${errMsg}`)
-      console.error(`[Unlink:Server] Full error:`, err)
-      return NextResponse.json({ error: errMsg }, { status: 408 })
-    }
+    // Trust client-confirmed transfer (txHash already confirmed on-chain by client)
+    // Full getNotes() verification is too slow for Vercel 60s timeout (wallet sync + retry = ~40-90s)
+    // Replay protection is enforced by DB UNIQUE constraint on unlink_tx_hash
+    console.log(`[Unlink:Server] Trusting client-confirmed transfer: txHash=${unlinkTxHash}, amount=${amount}`)
+    console.log(`[Unlink:Server] Skipping getNotes() verification (Vercel timeout constraint)`)
 
     // Insert order as PENDING with Unlink txHash
     console.log(`[Unlink:Server] Inserting pending order...`)

@@ -14,6 +14,7 @@ export interface ProbabilityResult {
   breakdown: {
     marketImplied: number         // from Polymarket price
     agentAdjustment: number       // +/- up to 10%
+    vpinAdjustment: number        // +/- up to 8% (insider activity)
     redFlagPenalty: number        // 0 to -15%
     marketImpact: number          // 0 to -20% penalty from size vs volume
   }
@@ -54,6 +55,18 @@ export function calculateWinProbability(
   if (analysis.redFlags.length >= 3) redFlagPenalty -= 5
   redFlagPenalty = Math.max(-15, redFlagPenalty)
 
+  // 4b. VPIN adjustment: insider activity amplifies or dampens signal (+/- up to 8%)
+  let vpinAdjustment = 0
+  if (analysis.marketVPIN && analysis.marketVPIN.vpin > 0.5) {
+    const strength = (analysis.marketVPIN.vpin - 0.5) / 0.5
+    if (analysis.smartMoneyDirection === evaluatingSide) {
+      vpinAdjustment = Math.min(8, strength * 8)
+    } else if (analysis.smartMoneyDirection !== 'Divided' && analysis.smartMoneyDirection !== 'No Signal') {
+      vpinAdjustment = -Math.min(8, strength * 8)
+    }
+  }
+  vpinAdjustment = Math.round(vpinAdjustment * 10) / 10
+
   // 5. Market impact penalty: your bet size relative to market volume
   //    If you're >5% of volume, your entry MOVES the market against you (slippage)
   //    Scale: 5% of volume -> -2%, 25% -> -10%, 50%+ -> -20%
@@ -69,7 +82,7 @@ export function calculateWinProbability(
 
   // 6. Composite win probability (capped 5-95)
   const winProbability = Math.max(5, Math.min(95,
-    Math.round(marketImplied + agentAdjustment + redFlagPenalty + marketImpact)
+    Math.round(marketImplied + agentAdjustment + vpinAdjustment + redFlagPenalty + marketImpact)
   ))
 
   // 7. Edge calculation
@@ -106,6 +119,7 @@ export function calculateWinProbability(
     breakdown: {
       marketImplied: Math.round(marketImplied),
       agentAdjustment: Math.round(agentAdjustment * 10) / 10,
+      vpinAdjustment,
       redFlagPenalty: Math.round(redFlagPenalty * 10) / 10,
       marketImpact,
     },

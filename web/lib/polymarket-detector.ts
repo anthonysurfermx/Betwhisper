@@ -13,6 +13,8 @@ export interface BotSignals {
   marketConcentration: number  // S6: 0-100
   ghostWhale: number           // S7: 0-100
   bothSidesBonus: number
+  makerTakerRatio: number      // S8: 0-100 (high taker ratio = informed)
+  freshWalletScore: number     // S9: 0-100 (new wallet + big trade = insider)
 }
 
 export type StrategyType = 'MARKET_MAKER' | 'HYBRID' | 'SNIPER' | 'MOMENTUM' | 'UNCLASSIFIED'
@@ -44,12 +46,14 @@ export interface BotDetectionResult {
 }
 
 const WEIGHTS = {
-  intervalRegularity: 0.20,
-  splitMergeRatio: 0.25,
-  sizingConsistency: 0.15,
-  activity24h: 0.15,
-  winRateExtreme: 0.15,
-  marketConcentration: 0.10,
+  intervalRegularity: 0.18,
+  splitMergeRatio: 0.22,
+  sizingConsistency: 0.13,
+  activity24h: 0.13,
+  winRateExtreme: 0.12,
+  marketConcentration: 0.08,
+  makerTakerRatio: 0.10,
+  freshWalletScore: 0.04,
 }
 
 function coefficientOfVariation(values: number[]): number {
@@ -307,6 +311,47 @@ export async function detectBot(
     else if (positionSize > 1000) s7 = Math.max(s7, 60)
   }
 
+  // S8: Maker/Taker Ratio (adapts to market price level using median)
+  let s8 = 0
+  if (trades.length > 15) {
+    const tradePrices = trades.map(t => parseFloat(t.price as string)).filter(p => !isNaN(p))
+    const sortedPrices = [...tradePrices].sort((a, b) => a - b)
+    const medianPrice = sortedPrices[Math.floor(sortedPrices.length / 2)] || 0.5
+    const takerBuyThreshold = Math.min(0.95, medianPrice + 0.05)
+    const takerSellThreshold = Math.max(0.05, medianPrice - 0.05)
+    let takerCount = 0
+    for (const t of trades) {
+      const price = parseFloat(t.price as string)
+      const tSide = ((t.side as string) || '').toUpperCase()
+      if ((tSide === 'BUY' && price >= takerBuyThreshold) || (tSide === 'SELL' && price <= takerSellThreshold)) {
+        takerCount++
+      }
+    }
+    const takerRatio = takerCount / trades.length
+    if (takerRatio > 0.85) s8 = 90
+    else if (takerRatio > 0.70) s8 = 50 + (takerRatio - 0.70) / 0.15 * 40
+    else if (takerRatio > 0.50) s8 = 20 + (takerRatio - 0.50) / 0.20 * 30
+  }
+
+  // S9: Fresh Wallet Detection
+  let s9 = 0
+  if (trades.length > 0 && trades.length < 500) {
+    const earliest = trades[trades.length - 1]
+    const earliestTs = parseFloat((earliest.timestamp as string) || '0')
+    const nowSec = Math.floor(Date.now() / 1000)
+    const walletAgeDays = (nowSec - earliestTs) / 86400
+    const firstTradeUSD = Math.abs(parseFloat((earliest.size as string) || '0') * parseFloat((earliest.price as string) || '0'))
+    if (walletAgeDays < 7) {
+      if (firstTradeUSD > 5000) s9 = 95
+      else if (firstTradeUSD > 1000) s9 = 75
+      else if (firstTradeUSD > 500) s9 = 50
+      else s9 = 20
+    } else if (walletAgeDays < 30) {
+      if (firstTradeUSD > 5000) s9 = 60
+      else if (firstTradeUSD > 1000) s9 = 30
+    }
+  }
+
   // sizeCV for strategy
   let sizeCV = 1
   if (trades.length > 10) {
@@ -325,7 +370,9 @@ export async function detectBot(
       s3 * WEIGHTS.sizingConsistency +
       s4 * WEIGHTS.activity24h +
       s5 * WEIGHTS.winRateExtreme +
-      s6 * WEIGHTS.marketConcentration
+      s6 * WEIGHTS.marketConcentration +
+      s8 * WEIGHTS.makerTakerRatio +
+      s9 * WEIGHTS.freshWalletScore
   }
 
   const botScore = Math.min(100, Math.round(rawScore + bothSidesBonus))
@@ -350,6 +397,8 @@ export async function detectBot(
       marketConcentration: Math.round(s6),
       ghostWhale: Math.round(s7),
       bothSidesBonus: Math.round(bothSidesBonus),
+      makerTakerRatio: Math.round(s8),
+      freshWalletScore: Math.round(s9),
     },
     classification,
     strategy,

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
 const BREVO_LIST_ID = process.env.BREVO_LIST_ID ? Number(process.env.BREVO_LIST_ID) : undefined
-const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'hello@voiceswap.cc'
-const FROM_NAME = 'VoiceSwap'
+const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'hello@betwhisper.ai'
+const FROM_NAME = 'BetWhisper'
 
 const BREVO_API = 'https://api.brevo.com/v3'
 
@@ -61,34 +61,34 @@ export async function POST(request: NextRequest) {
       await brevoFetch('/smtp/email', {
         sender: { name: FROM_NAME, email: FROM_EMAIL },
         to: [{ email }],
-        subject: "Welcome to VoiceSwap — you're on the list",
+        subject: "You're on the BetWhisper waitlist",
         htmlContent: `
           <div style="font-family: 'Courier New', monospace; max-width: 500px; margin: 0 auto; padding: 40px 20px; color: #000;">
-            <div style="border-bottom: 2px solid #836EF9; padding-bottom: 20px; margin-bottom: 30px;">
-              <h1 style="font-size: 24px; font-weight: 900; margin: 0; letter-spacing: 2px;">VOICESWAP</h1>
-              <p style="color: #836EF9; font-size: 11px; letter-spacing: 2px; margin: 4px 0 0 0;">VOICE-ACTIVATED PAYMENTS</p>
+            <div style="border-bottom: 2px solid #fff; padding-bottom: 20px; margin-bottom: 30px;">
+              <h1 style="font-size: 24px; font-weight: 900; margin: 0; letter-spacing: 2px;">BETWHISPER</h1>
+              <p style="color: #666; font-size: 11px; letter-spacing: 2px; margin: 4px 0 0 0;">TRADE POLYMARKET FROM YOUR GLASSES</p>
             </div>
 
             <p style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-              You're in. We'll notify you as soon as VoiceSwap launches on iOS for Meta Ray-Ban glasses.
+              You're in. We'll notify you as soon as BetWhisper launches on Meta Ray-Ban glasses.
             </p>
 
-            <div style="background: #FAFAFA; border-left: 3px solid #836EF9; padding: 16px 20px; margin: 24px 0;">
+            <div style="background: #FAFAFA; border-left: 3px solid #000; padding: 16px 20px; margin: 24px 0;">
               <p style="font-size: 13px; margin: 0; font-weight: bold;">What's coming:</p>
               <ul style="font-size: 13px; padding-left: 16px; margin: 8px 0 0 0; line-height: 1.8;">
-                <li>Pay with your voice through smart glasses</li>
-                <li>Instant USDC on Monad — near-zero gas</li>
-                <li>English &amp; Spanish voice commands</li>
+                <li>Trade prediction markets with your voice</li>
+                <li>Sports, crypto, politics — anything on Polymarket</li>
+                <li>No phone, no app switching, no screens</li>
               </ul>
             </div>
 
             <p style="font-size: 14px; line-height: 1.6; margin-top: 24px;">
-              In the meantime, merchants can already accept payments at
-              <a href="https://voiceswap.cc/receive" style="color: #836EF9; font-weight: bold;">voiceswap.cc/receive</a>
+              In the meantime, try the web app at
+              <a href="https://betwhisper.ai/predict" style="color: #000; font-weight: bold;">betwhisper.ai/predict</a>
             </p>
 
             <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E5E5; font-size: 11px; color: #777; letter-spacing: 1px;">
-              BUILT ON MONAD &bull; POWERED BY UNISWAP V3
+              BUILT ON MONAD &bull; POWERED BY POLYMARKET
             </div>
           </div>
         `,
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       console.error('[Waitlist] Welcome email failed:', emailErr)
     }
 
-    return NextResponse.json({ success: true, message: 'Welcome to VoiceSwap!' })
+    return NextResponse.json({ success: true, message: "You're on the list!" })
   } catch (error) {
     console.error('[Waitlist] Error:', error)
     return NextResponse.json(

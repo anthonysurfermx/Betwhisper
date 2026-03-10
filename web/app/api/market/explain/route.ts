@@ -27,7 +27,7 @@ Be direct but friendly. Explain technical data in simple terms a sports fan unde
 Keep it to 5-6 lines max. Under 90 characters per line.
 ${langInstr}
 Never speculate beyond the data. Never hallucinate numbers.
-Focus on: what the bots are doing, whether smart money agrees, and a simple verdict.
+Focus on: what the bots are doing, whether smart money agrees, VPIN insider indicators, and a simple verdict.
 Do NOT include "TAGS:" at the end. Just the analysis.`
 }
 
@@ -56,6 +56,10 @@ Strategy distribution: ${strategyLines || 'None classified'}
 
 Agent capital YES: $${Math.round(capitalByOutcome.Yes.agent)} agent / $${Math.round(capitalByOutcome.Yes.human)} human
 Agent capital NO: $${Math.round(capitalByOutcome.No.agent)} agent / $${Math.round(capitalByOutcome.No.human)} human
+
+VPIN Score: ${analysis.marketVPIN ? `${analysis.marketVPIN.vpinPct}% (${analysis.marketVPIN.classification})` : 'N/A (insufficient trades)'}
+Maker/Taker: ${analysis.makerTakerSummary ? `${analysis.makerTakerSummary.classification}, avg taker ratio ${analysis.makerTakerSummary.avgTakerRatio}%` : 'N/A'}
+Fresh wallets: ${analysis.freshWalletFlags?.length || 0} new wallets with large positions
 
 Red flags: ${analysis.redFlags.length > 0 ? analysis.redFlags.join('; ') : 'None'}
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getMarketHolders } from '@/lib/polymarket'
 import { detectBot } from '@/lib/polymarket-detector'
 import type { BotDetectionResult, StrategyType } from '@/lib/polymarket-detector'
+import { calculateVPIN, type VPINResult } from '@/lib/vpin'
+import { DATA_API } from '@/lib/constants'
 
 // Deep analysis: scan top N holders with full Agent Radar engine
 // Returns market structure, agent classification, strategy distribution,
@@ -47,6 +49,21 @@ export interface DeepAnalysisResult {
   recommendation: string
   // Tags
   tags: string[]
+  // VPIN — market-level insider activity
+  marketVPIN: VPINResult | null
+  // Maker/Taker summary from S8 signals
+  makerTakerSummary: {
+    avgTakerRatio: number
+    highTakerCount: number
+    classification: 'informed-heavy' | 'mixed' | 'liquidity-heavy'
+  }
+  // Fresh wallet flags from S9 signals
+  freshWalletFlags: {
+    address: string
+    pseudonym: string
+    walletAgeDays: number
+    freshWalletScore: number
+  }[]
   // Signal hash
   signalHash: string
 }
@@ -149,6 +166,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 6b. VPIN — fetch market trades and compute
+    let marketVPIN: VPINResult | null = null
+    try {
+      const tradesRes = await fetch(`${DATA_API}/trades?market=${conditionId}&limit=1000`)
+      if (tradesRes.ok) {
+        const rawTrades = await tradesRes.json()
+        if (Array.isArray(rawTrades) && rawTrades.length >= 50) {
+          const vpinTrades = rawTrades.map((t: any) => ({
+            price: parseFloat(t.price) || 0,
+            size: parseFloat(t.size) || 0,
+            side: (t.side || 'BUY').toUpperCase(),
+            timestamp: typeof t.timestamp === 'number' ? t.timestamp : parseInt(t.timestamp || '0', 10),
+          }))
+          marketVPIN = calculateVPIN(vpinTrades)
+        }
+      }
+    } catch { /* VPIN is supplementary, don't fail the whole analysis */ }
+
+    // 6c. Maker/Taker summary from S8 signals
+    const s8Scores = scanResults.map(r => r.signals.makerTakerRatio || 0)
+    const avgTakerRatio = s8Scores.length > 0
+      ? Math.round(s8Scores.reduce((a, b) => a + b, 0) / s8Scores.length)
+      : 0
+    const highTakerCount = s8Scores.filter(s => s >= 70).length
+    const makerTakerClassification: 'informed-heavy' | 'mixed' | 'liquidity-heavy' =
+      avgTakerRatio >= 70 ? 'informed-heavy' : avgTakerRatio >= 40 ? 'mixed' : 'liquidity-heavy'
+    const makerTakerSummary = { avgTakerRatio, highTakerCount, classification: makerTakerClassification }
+
+    // 6d. Fresh wallet flags from S9 signals
+    const freshWalletFlags = scanResults
+      .filter(r => (r.signals.freshWalletScore || 0) >= 50)
+      .map(r => ({
+        address: r.address,
+        pseudonym: r.pseudonym || `${r.address.slice(0, 6)}...${r.address.slice(-4)}`,
+        walletAgeDays: 0, // approximate, S9 scored it
+        freshWalletScore: r.signals.freshWalletScore || 0,
+      }))
+
     // 7. Red flags
     const redFlags: string[] = []
     if (agentRate >= 60) redFlags.push(`High agent concentration: ${agentRate}% of top holders are bots`)
@@ -159,6 +214,14 @@ export async function POST(request: NextRequest) {
     if (ghostWhales.length > 0) redFlags.push(`${ghostWhales.length} ghost whale(s) detected (large positions, minimal trade history)`)
     if (dominantStrategy?.type === 'SNIPER' && dominantStrategy.count >= 2) {
       redFlags.push(`${dominantStrategy.count} snipers detected. Possible latency arbitrage activity.`)
+    }
+    if (marketVPIN && marketVPIN.vpin > 0.75) {
+      redFlags.push(`High VPIN (${marketVPIN.vpinPct}%): strong insider activity detected`)
+    } else if (marketVPIN && marketVPIN.vpin > 0.60) {
+      redFlags.push(`Elevated VPIN (${marketVPIN.vpinPct}%): possible informed trading`)
+    }
+    if (freshWalletFlags.length > 0) {
+      redFlags.push(`${freshWalletFlags.length} fresh wallet(s) with large positions`)
     }
 
     // 8. Recommendation
@@ -183,6 +246,8 @@ export async function POST(request: NextRequest) {
     if (dominantStrategy) tags.push(dominantStrategy.label)
     if (smartMoneyDirection === 'Yes' || smartMoneyDirection === 'No') tags.push(`Smart Money: ${smartMoneyDirection}`)
     if (ghostWhales.length > 0) tags.push('Ghost Whales')
+    if (marketVPIN && marketVPIN.classification === 'extreme') tags.push('VPIN Alert')
+    if (freshWalletFlags.length > 0) tags.push('Fresh Wallets')
 
     // 10. Top holders for display
     const topHolders = scanResults.map(r => ({
@@ -215,6 +280,9 @@ export async function POST(request: NextRequest) {
       redFlags,
       recommendation,
       tags,
+      marketVPIN,
+      makerTakerSummary,
+      freshWalletFlags,
       signalHash,
     }
 

@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "VoiceSwap — The AI payment agent that lives in your glasses",
+  title: "BetWhisper — Trade Polymarket from your glasses",
   description:
-    "An autonomous AI agent on Meta Ray-Ban glasses. It sees, listens, and pays — on Monad. No phone, no wallet apps, no friction.",
-  keywords: ["AI agent", "autonomous payments", "Meta Ray-Ban", "smart glasses", "Monad", "Gemini Live", "USDC", "voice payments"],
+    "The fastest way to trade prediction markets. Just say what you want to bet on. BetWhisper handles the rest. No phone, no app switching, no screens.",
+  keywords: ["prediction markets", "Polymarket", "Meta Ray-Ban", "smart glasses", "voice trading", "AI agent", "sports betting", "crypto predictions"],
   icons: {
     icon: [
       {
@@ -36,26 +36,26 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
-  metadataBase: new URL("https://www.voiceswap.cc"),
+  metadataBase: new URL("https://betwhisper.ai"),
   openGraph: {
-    title: "VoiceSwap — The AI payment agent that lives in your glasses",
-    description: "An autonomous AI agent on Meta Ray-Ban glasses. It sees, listens, and pays — on Monad. No phone, no wallet apps, no friction.",
+    title: "BetWhisper — Trade Polymarket from your glasses",
+    description: "The fastest way to trade prediction markets. Just say what you want to bet on. No phone needed.",
     type: "website",
-    url: "https://www.voiceswap.cc",
-    siteName: "VoiceSwap",
+    url: "https://betwhisper.ai",
+    siteName: "BetWhisper",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "VoiceSwap — The AI payment agent that lives in your glasses",
+        alt: "BetWhisper — Trade Polymarket from your glasses",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "VoiceSwap — The AI payment agent that lives in your glasses",
-    description: "An autonomous AI agent on Meta Ray-Ban glasses. It sees, listens, and pays — on Monad.",
+    title: "BetWhisper — Trade Polymarket from your glasses",
+    description: "The fastest way to trade prediction markets. Just say what you want to bet on. No phone needed.",
     images: ["/og-image.png"],
   },
 }

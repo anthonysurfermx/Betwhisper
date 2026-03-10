@@ -1,2 +1,2 @@
-// Root page — serves BetWhisper landing for all domains
-export { default } from './betwhisper/page'
+// Root page — Glasses landing (product)
+export { default } from './glasses/page'
